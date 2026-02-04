@@ -25,6 +25,29 @@ async function pickPort(): Promise<number> {
   });
 }
 
+async function waitForPort(host: string, port: number, timeoutMs = 5000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const socket = net.createConnection({ host, port });
+        socket.once("connect", () => {
+          socket.end();
+          resolve();
+        });
+        socket.once("error", (err) => {
+          socket.destroy();
+          reject(err);
+        });
+      });
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+  throw new Error("daemon did not start in time");
+}
+
 test("sdk exec smoke", async () => {
   const port = await pickPort();
   const daemon = spawn("go", ["run", "./cmd/klitkavm-daemon", "--tcp", `127.0.0.1:${port}`], {
@@ -32,9 +55,9 @@ test("sdk exec smoke", async () => {
     stdio: "pipe",
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 800));
-
   try {
+    await waitForPort("127.0.0.1", port);
+
     const sandbox = await Sandbox.start({ baseUrl: `http://127.0.0.1:${port}` });
     const result = await sandbox.exec(["uname", "-a"]);
     await sandbox.close();

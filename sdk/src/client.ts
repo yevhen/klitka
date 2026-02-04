@@ -71,7 +71,18 @@ function normalizeCommand(command: string | string[]): [string, string[]] {
 }
 
 function createClient(options: SandboxOptions) {
-  const baseUrl = options.baseUrl ?? process.env.KLITKAVM_TCP ?? "http://127.0.0.1:5711";
+  const rawBaseUrl = options.baseUrl ?? process.env.KLITKAVM_TCP;
+  if (!rawBaseUrl) {
+    throw new Error("baseUrl or KLITKAVM_TCP must be set for SDK connections");
+  }
+  const baseUrl = normalizeBaseUrl(rawBaseUrl);
   const transport = createConnectTransport({ baseUrl, httpVersion: "1.1" });
   return createPromiseClient(DaemonService, transport);
+}
+
+function normalizeBaseUrl(baseUrl: string) {
+  if (baseUrl.startsWith("http://") || baseUrl.startsWith("https://")) {
+    return baseUrl;
+  }
+  return `http://${baseUrl}`;
 }

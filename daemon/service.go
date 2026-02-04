@@ -3,7 +3,9 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"sync"
 
@@ -13,27 +15,22 @@ import (
 	klitkavmv1 "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1"
 )
 
-type VM struct {
-	ID string
-}
-
 type Service struct {
 	mu  sync.Mutex
-	vms map[string]*VM
+	vms map[string]struct{}
 }
 
 func NewService() *Service {
-	return &Service{vms: make(map[string]*VM)}
+	return &Service{vms: make(map[string]struct{})}
 }
 
 func (s *Service) StartVM(
-	ctx context.Context,
+	_ context.Context,
 	_ *connect.Request[klitkavmv1.StartVMRequest],
 ) (*connect.Response[klitkavmv1.StartVMResponse], error) {
-	_ = ctx
 	vmID := uuid.NewString()
 	s.mu.Lock()
-	s.vms[vmID] = &VM{ID: vmID}
+	s.vms[vmID] = struct{}{}
 	s.mu.Unlock()
 
 	return connect.NewResponse(&klitkavmv1.StartVMResponse{VmId: vmID}), nil
@@ -75,9 +72,24 @@ func (s *Service) Exec(
 
 	exitCode := int32(0)
 	if err := cmd.Run(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		var execErr *exec.Error
+		var pathErr *os.PathError
+
+		switch {
+		case errors.As(err, &exitErr):
 			exitCode = int32(exitErr.ExitCode())
-		} else {
+		case errors.As(err, &execErr):
+			exitCode = 127
+			if stderr.Len() == 0 {
+				_, _ = stderr.WriteString(execErr.Error())
+			}
+		case errors.As(err, &pathErr):
+			exitCode = 127
+			if stderr.Len() == 0 {
+				_, _ = stderr.WriteString(pathErr.Error())
+			}
+		default:
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("exec failed: %w", err))
 		}
 	}
@@ -91,10 +103,9 @@ func (s *Service) Exec(
 }
 
 func (s *Service) StopVM(
-	ctx context.Context,
+	_ context.Context,
 	req *connect.Request[klitkavmv1.StopVMRequest],
 ) (*connect.Response[klitkavmv1.StopVMResponse], error) {
-	_ = ctx
 	vmID := req.Msg.GetVmId()
 	if vmID == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("vm_id is required"))
@@ -102,6 +113,9 @@ func (s *Service) StopVM(
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, ok := s.vms[vmID]; !ok {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("vm %s not found", vmID))
+	}
 	delete(s.vms, vmID)
 
 	return connect.NewResponse(&klitkavmv1.StopVMResponse{}), nil

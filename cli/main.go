@@ -70,20 +70,24 @@ func execCommand(args []string) {
 		commandArgs = cmdArgs[1:]
 	}
 
+	stopVM := func() {
+		stopReq := connect.NewRequest(&klitkavmv1.StopVMRequest{VmId: vmID})
+		if _, stopErr := client.StopVM(ctx, stopReq); stopErr != nil {
+			log.Printf("stop vm failed: %v", stopErr)
+		}
+	}
+
 	execResp, err := client.Exec(ctx, connect.NewRequest(&klitkavmv1.ExecRequest{
 		VmId:    vmID,
 		Command: command,
 		Args:    commandArgs,
 	}))
 	if err != nil {
+		stopVM()
 		log.Fatalf("exec failed: %v", err)
 	}
 
-	stopReq := connect.NewRequest(&klitkavmv1.StopVMRequest{VmId: vmID})
-	_, stopErr := client.StopVM(ctx, stopReq)
-	if stopErr != nil {
-		log.Printf("stop vm failed: %v", stopErr)
-	}
+	stopVM()
 
 	exitCode := execResp.Msg.GetExitCode()
 	if len(execResp.Msg.GetStdout()) > 0 {

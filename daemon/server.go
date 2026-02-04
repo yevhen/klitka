@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -31,7 +32,7 @@ func StartServer(handler http.Handler, options ServerOptions) (*Server, error) {
 	}
 
 	socketPath := options.SocketPath
-	if socketPath == "" {
+	if socketPath == "" && options.TCPAddr == "" {
 		socketPath = DefaultSocketPath()
 	}
 	if socketPath != "" {
@@ -53,7 +54,9 @@ func StartServer(handler http.Handler, options ServerOptions) (*Server, error) {
 	server := &http.Server{Handler: handler}
 	for _, listener := range listeners {
 		go func(l net.Listener) {
-			_ = server.Serve(l)
+			if err := server.Serve(l); err != nil && err != http.ErrServerClosed {
+				log.Printf("server error on %s: %v", l.Addr(), err)
+			}
 		}(listener)
 	}
 
