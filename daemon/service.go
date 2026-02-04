@@ -135,9 +135,7 @@ func (s *Service) ExecStream(
 		go readOutput(ctx, wg, stderr, "stderr", send, outputErr)
 	}
 
-	inputDone := make(chan struct{})
 	go func() {
-		defer close(inputDone)
 		for {
 			msg, recvErr := stream.Receive()
 			if recvErr != nil {
@@ -216,10 +214,7 @@ func (s *Service) hasVM(vmID string) bool {
 }
 
 func commandFromArgs(ctx context.Context, command string, args []string) *exec.Cmd {
-	if len(args) > 0 {
-		return exec.CommandContext(ctx, command, args...)
-	}
-	return exec.CommandContext(ctx, "sh", "-c", command)
+	return exec.CommandContext(ctx, command, args...)
 }
 
 func startCommand(cmd *exec.Cmd, usePty bool) (io.WriteCloser, io.Reader, io.Reader, *os.File, error) {
@@ -268,7 +263,10 @@ func readOutput(
 		n, err := reader.Read(buf)
 		if n > 0 {
 			if sendErr := send(execOutput(stream, buf[:n])); sendErr != nil {
-				errCh <- sendErr
+				select {
+				case errCh <- sendErr:
+				default:
+				}
 				return
 			}
 		}
@@ -276,7 +274,10 @@ func readOutput(
 			if errors.Is(err, io.EOF) || errors.Is(err, os.ErrClosed) || errors.Is(err, syscall.EIO) {
 				return
 			}
-			errCh <- err
+			select {
+			case errCh <- err:
+			default:
+			}
 			return
 		}
 	}

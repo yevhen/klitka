@@ -20,7 +20,7 @@ async function waitForDaemon(proc: ReturnType<typeof spawn>, timeoutMs = 15000):
     const onData = (chunk: Buffer) => {
       const message = chunk.toString();
       output += message;
-      const match = message.match(/daemon listening on ([\d.:]+)/);
+      const match = output.match(/daemon listening on ([\d.:]+)/);
       if (match) {
         cleanup();
         const addr = match[1];
@@ -100,19 +100,19 @@ test("sdk shell smoke", async () => {
 
 async function shutdownDaemon(proc: ReturnType<typeof spawn>) {
   if (proc.killed) return;
-  if (proc.pid) {
-    process.kill(-proc.pid, "SIGTERM");
-  } else {
-    proc.kill("SIGTERM");
-  }
+  killProcess(proc, "SIGTERM");
   const exited = await waitForExit(proc, 2000);
   if (!exited) {
-    if (proc.pid) {
-      process.kill(-proc.pid, "SIGKILL");
-    } else {
-      proc.kill("SIGKILL");
-    }
+    killProcess(proc, "SIGKILL");
     await waitForExit(proc, 2000);
+  }
+}
+
+function killProcess(proc: ReturnType<typeof spawn>, signal: NodeJS.Signals) {
+  if (proc.pid && process.platform !== "win32") {
+    process.kill(-proc.pid, signal);
+  } else {
+    proc.kill(signal);
   }
 }
 

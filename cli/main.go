@@ -80,6 +80,9 @@ func execCommand(args []string) {
 	var commandArgs []string
 	if len(cmdArgs) > 1 {
 		commandArgs = cmdArgs[1:]
+	} else if strings.ContainsAny(command, " \t\n") {
+		command = "sh"
+		commandArgs = []string{"-c", cmdArgs[0]}
 	}
 
 	stopVM := func() {
@@ -170,10 +173,8 @@ func shellCommand(args []string) {
 
 	exitCodeCh := make(chan int32, 1)
 	readErrCh := make(chan error, 1)
-	done := make(chan struct{})
 
 	go func() {
-		defer close(done)
 		reader := bufio.NewReader(os.Stdin)
 		buf := make([]byte, 4096)
 		for {
@@ -206,7 +207,10 @@ func shellCommand(args []string) {
 			resp, err := stream.Receive()
 			if err != nil {
 				if !errors.Is(err, io.EOF) {
-					readErrCh <- err
+					select {
+					case readErrCh <- err:
+					default:
+					}
 				}
 				return
 			}
@@ -232,7 +236,7 @@ func shellCommand(args []string) {
 		exitCode = 1
 	}
 
-	<-done
+	_ = stream.CloseRequest()
 
 	stopVM := connect.NewRequest(&klitkavmv1.StopVMRequest{VmId: vmID})
 	if _, stopErr := client.StopVM(ctx, stopVM); stopErr != nil {
@@ -245,7 +249,7 @@ func shellCommand(args []string) {
 }
 
 func sendResize(fd int, send func(*klitkavmv1.ExecStreamRequest) error) {
-	rows, cols, err := term.GetSize(fd)
+	cols, rows, err := term.GetSize(fd)
 	if err != nil {
 		return
 	}

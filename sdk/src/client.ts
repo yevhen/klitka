@@ -176,6 +176,7 @@ export class Sandbox {
         exitReject(err instanceof Error ? err : new Error(String(err)));
       } finally {
         outputQueue.close();
+        requestQueue.close();
         if (!exitSettled) {
           exitResolve(1);
         }
@@ -259,7 +260,7 @@ function normalizeCommand(command: string | string[]): [string, string[]] {
     }
     return [command[0], command.slice(1)];
   }
-  return [command, []];
+  return ["sh", ["-c", command]];
 }
 
 function createClient(options: SandboxOptions) {
