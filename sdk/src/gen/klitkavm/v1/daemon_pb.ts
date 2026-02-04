@@ -7,9 +7,40 @@ import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialM
 import { Message, proto3 } from "@bufbuild/protobuf";
 
 /**
+ * @generated from enum klitkavm.v1.MountMode
+ */
+export enum MountMode {
+  /**
+   * @generated from enum value: MOUNT_MODE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: MOUNT_MODE_RO = 1;
+   */
+  RO = 1,
+
+  /**
+   * @generated from enum value: MOUNT_MODE_RW = 2;
+   */
+  RW = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(MountMode)
+proto3.util.setEnumType(MountMode, "klitkavm.v1.MountMode", [
+  { no: 0, name: "MOUNT_MODE_UNSPECIFIED" },
+  { no: 1, name: "MOUNT_MODE_RO" },
+  { no: 2, name: "MOUNT_MODE_RW" },
+]);
+
+/**
  * @generated from message klitkavm.v1.StartVMRequest
  */
 export class StartVMRequest extends Message<StartVMRequest> {
+  /**
+   * @generated from field: repeated klitkavm.v1.Mount mounts = 1;
+   */
+  mounts: Mount[] = [];
+
   constructor(data?: PartialMessage<StartVMRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -18,6 +49,7 @@ export class StartVMRequest extends Message<StartVMRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "klitkavm.v1.StartVMRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "mounts", kind: "message", T: Mount, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): StartVMRequest {
@@ -34,6 +66,55 @@ export class StartVMRequest extends Message<StartVMRequest> {
 
   static equals(a: StartVMRequest | PlainMessage<StartVMRequest> | undefined, b: StartVMRequest | PlainMessage<StartVMRequest> | undefined): boolean {
     return proto3.util.equals(StartVMRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message klitkavm.v1.Mount
+ */
+export class Mount extends Message<Mount> {
+  /**
+   * @generated from field: string guest_path = 1;
+   */
+  guestPath = "";
+
+  /**
+   * @generated from field: string host_path = 2;
+   */
+  hostPath = "";
+
+  /**
+   * @generated from field: klitkavm.v1.MountMode mode = 3;
+   */
+  mode = MountMode.UNSPECIFIED;
+
+  constructor(data?: PartialMessage<Mount>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "klitkavm.v1.Mount";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "guest_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "host_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "mode", kind: "enum", T: proto3.getEnumType(MountMode) },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Mount {
+    return new Mount().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Mount {
+    return new Mount().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Mount {
+    return new Mount().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Mount | PlainMessage<Mount> | undefined, b: Mount | PlainMessage<Mount> | undefined): boolean {
+    return proto3.util.equals(Mount, a, b);
   }
 }
 

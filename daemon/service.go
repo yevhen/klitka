@@ -20,20 +20,25 @@ import (
 
 type Service struct {
 	mu  sync.Mutex
-	vms map[string]struct{}
+	vms map[string]*VM
 }
 
 func NewService() *Service {
-	return &Service{vms: make(map[string]struct{})}
+	return &Service{vms: make(map[string]*VM)}
 }
 
 func (s *Service) StartVM(
 	_ context.Context,
-	_ *connect.Request[klitkavmv1.StartVMRequest],
+	req *connect.Request[klitkavmv1.StartVMRequest],
 ) (*connect.Response[klitkavmv1.StartVMResponse], error) {
 	vmID := uuid.NewString()
+	vm, err := newVM(vmID, req.Msg)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
 	s.mu.Lock()
-	s.vms[vmID] = struct{}{}
+	s.vms[vmID] = vm
 	s.mu.Unlock()
 
 	return connect.NewResponse(&klitkavmv1.StartVMResponse{VmId: vmID}), nil
@@ -48,7 +53,8 @@ func (s *Service) Exec(
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("vm_id is required"))
 	}
 
-	if !s.hasVM(vmID) {
+	vm, ok := s.getVM(vmID)
+	if !ok {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("vm %s not found", vmID))
 	}
 
@@ -57,7 +63,8 @@ func (s *Service) Exec(
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("command is required"))
 	}
 
-	cmd := commandFromArgs(ctx, command, req.Msg.GetArgs())
+	command, args := vm.RewriteCommand(command, req.Msg.GetArgs())
+	cmd := commandFromArgs(ctx, command, args)
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -96,14 +103,16 @@ func (s *Service) ExecStream(
 	if start.GetVmId() == "" {
 		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("vm_id is required"))
 	}
-	if !s.hasVM(start.GetVmId()) {
+	vm, ok := s.getVM(start.GetVmId())
+	if !ok {
 		return connect.NewError(connect.CodeNotFound, fmt.Errorf("vm %s not found", start.GetVmId()))
 	}
 	if start.GetCommand() == "" {
 		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("command is required"))
 	}
 
-	cmd := commandFromArgs(ctx, start.GetCommand(), start.GetArgs())
+	command, args := vm.RewriteCommand(start.GetCommand(), start.GetArgs())
+	cmd := commandFromArgs(ctx, command, args)
 
 	stdin, stdout, stderr, ptyFile, err := startCommand(cmd, start.GetPty())
 	if err != nil {
@@ -197,20 +206,23 @@ func (s *Service) StopVM(
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.vms[vmID]; !ok {
+	vm, ok := s.vms[vmID]
+	if !ok {
+		s.mu.Unlock()
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("vm %s not found", vmID))
 	}
 	delete(s.vms, vmID)
+	s.mu.Unlock()
 
+	vm.Cleanup()
 	return connect.NewResponse(&klitkavmv1.StopVMResponse{}), nil
 }
 
-func (s *Service) hasVM(vmID string) bool {
+func (s *Service) getVM(vmID string) (*VM, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, ok := s.vms[vmID]
-	return ok
+	vm, ok := s.vms[vmID]
+	return vm, ok
 }
 
 func commandFromArgs(ctx context.Context, command string, args []string) *exec.Cmd {

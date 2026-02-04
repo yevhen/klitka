@@ -7,13 +7,26 @@ import {
   ExecRequest,
   ExecStart,
   ExecStreamRequest,
+  Mount,
+  MountMode,
   PtyResize,
   StartVMRequest,
   StopVMRequest,
 } from "./gen/klitkavm/v1/daemon_pb";
 
+export type MountConfig = {
+  hostPath: string;
+  guestPath: string;
+  mode?: "ro" | "rw";
+};
+
+export type FileSystemConfig = {
+  mounts?: MountConfig[];
+};
+
 export type SandboxOptions = {
   baseUrl?: string;
+  fs?: FileSystemConfig;
 };
 
 export type ExecResult = {
@@ -92,7 +105,11 @@ export class Sandbox {
   static async start(options: SandboxOptions = {}): Promise<Sandbox> {
     const { client, close } = createClient(options);
     const sandbox = new Sandbox(client, close);
-    const response = await client.startVM(new StartVMRequest({}));
+    const response = await client.startVM(
+      new StartVMRequest({
+        mounts: buildMounts(options.fs?.mounts),
+      })
+    );
     sandbox.vmId = response.vmId;
     return sandbox;
   }
@@ -289,4 +306,27 @@ function normalizeBaseUrl(baseUrl: string) {
     return baseUrl;
   }
   return `http://${baseUrl}`;
+}
+
+function buildMounts(mounts?: MountConfig[]): Mount[] {
+  if (!mounts || mounts.length === 0) {
+    return [];
+  }
+  return mounts.map((mount) =>
+    new Mount({
+      hostPath: mount.hostPath,
+      guestPath: mount.guestPath,
+      mode: mountModeFromConfig(mount.mode),
+    })
+  );
+}
+
+function mountModeFromConfig(mode?: MountConfig["mode"]): MountMode {
+  if (mode === "rw") {
+    return MountMode.RW;
+  }
+  if (mode === "ro") {
+    return MountMode.RO;
+  }
+  return MountMode.RO;
 }

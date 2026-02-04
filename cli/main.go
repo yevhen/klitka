@@ -50,16 +50,18 @@ func main() {
 
 func printUsage() {
 	fmt.Println("Usage:")
-	fmt.Println("  klitkavm exec [--socket path | --tcp host:port] -- <command>")
-	fmt.Println("  klitkavm shell [--socket path | --tcp host:port]")
-	fmt.Println("  klitkavm start [--socket path | --tcp host:port]")
+	fmt.Println("  klitkavm exec [--mount host:guest[:ro|rw]] [--socket path | --tcp host:port] -- <command>")
+	fmt.Println("  klitkavm shell [--mount host:guest[:ro|rw]] [--socket path | --tcp host:port]")
+	fmt.Println("  klitkavm start [--mount host:guest[:ro|rw]] [--socket path | --tcp host:port]")
 	fmt.Println("  klitkavm stop --id <vm-id> [--socket path | --tcp host:port]")
 }
 
 func execCommand(args []string) {
 	fs := flag.NewFlagSet("exec", flag.ExitOnError)
+	mountArgs := mountFlag{}
 	socket := fs.String("socket", socketDefault(), "unix socket path")
 	tcp := fs.String("tcp", tcpDefault(), "tcp address host:port")
+	fs.Var(&mountArgs, "mount", "mount in format host:guest[:ro|rw]")
 	fs.Parse(args)
 
 	cmdArgs := fs.Args()
@@ -70,7 +72,12 @@ func execCommand(args []string) {
 	client, baseURL := newClient(*socket, *tcp)
 	ctx := context.Background()
 
-	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{}))
+	mounts, err := parseMountFlags(mountArgs)
+	if err != nil {
+		log.Fatalf("invalid mount flag: %v", err)
+	}
+
+	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{Mounts: mounts}))
 	if err != nil {
 		log.Fatalf("start vm failed: %v", err)
 	}
@@ -120,14 +127,21 @@ func execCommand(args []string) {
 
 func shellCommand(args []string) {
 	fs := flag.NewFlagSet("shell", flag.ExitOnError)
+	mountArgs := mountFlag{}
 	socket := fs.String("socket", socketDefault(), "unix socket path")
 	tcp := fs.String("tcp", tcpDefault(), "tcp address host:port")
+	fs.Var(&mountArgs, "mount", "mount in format host:guest[:ro|rw]")
 	fs.Parse(args)
 
 	client, _ := newClient(*socket, *tcp)
 	ctx := context.Background()
 
-	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{}))
+	mounts, err := parseMountFlags(mountArgs)
+	if err != nil {
+		log.Fatalf("invalid mount flag: %v", err)
+	}
+
+	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{Mounts: mounts}))
 	if err != nil {
 		log.Fatalf("start vm failed: %v", err)
 	}
@@ -272,14 +286,21 @@ func watchResize(fd int, send func(*klitkavmv1.ExecStreamRequest) error) {
 
 func startCommand(args []string) {
 	fs := flag.NewFlagSet("start", flag.ExitOnError)
+	mountArgs := mountFlag{}
 	socket := fs.String("socket", socketDefault(), "unix socket path")
 	tcp := fs.String("tcp", tcpDefault(), "tcp address host:port")
+	fs.Var(&mountArgs, "mount", "mount in format host:guest[:ro|rw]")
 	fs.Parse(args)
 
 	client, _ := newClient(*socket, *tcp)
 	ctx := context.Background()
 
-	resp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{}))
+	mounts, err := parseMountFlags(mountArgs)
+	if err != nil {
+		log.Fatalf("invalid mount flag: %v", err)
+	}
+
+	resp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{Mounts: mounts}))
 	if err != nil {
 		log.Fatalf("start vm failed: %v", err)
 	}
@@ -303,6 +324,54 @@ func stopCommand(args []string) {
 	if err != nil {
 		log.Fatalf("stop vm failed: %v", err)
 	}
+}
+
+type mountFlag []string
+
+func (m *mountFlag) String() string {
+	return strings.Join(*m, ",")
+}
+
+func (m *mountFlag) Set(value string) error {
+	*m = append(*m, value)
+	return nil
+}
+
+func parseMountFlags(flags mountFlag) ([]*klitkavmv1.Mount, error) {
+	if len(flags) == 0 {
+		return nil, nil
+	}
+
+	mounts := make([]*klitkavmv1.Mount, 0, len(flags))
+	for _, item := range flags {
+		parts := strings.SplitN(item, ":", 3)
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("invalid mount format: %q", item)
+		}
+		hostPath := strings.TrimSpace(parts[0])
+		guestPath := strings.TrimSpace(parts[1])
+		mode := klitkavmv1.MountMode_MOUNT_MODE_RO
+		if len(parts) == 3 {
+			switch strings.ToLower(strings.TrimSpace(parts[2])) {
+			case "ro", "":
+				mode = klitkavmv1.MountMode_MOUNT_MODE_RO
+			case "rw":
+				mode = klitkavmv1.MountMode_MOUNT_MODE_RW
+			default:
+				return nil, fmt.Errorf("invalid mount mode: %q", parts[2])
+			}
+		}
+		if hostPath == "" || guestPath == "" {
+			return nil, fmt.Errorf("invalid mount format: %q", item)
+		}
+		mounts = append(mounts, &klitkavmv1.Mount{
+			HostPath:  hostPath,
+			GuestPath: guestPath,
+			Mode:      mode,
+		})
+	}
+
+	return mounts, nil
 }
 
 func newClient(socketPath, tcpAddr string) (klitkavmv1connect.DaemonServiceClient, string) {
