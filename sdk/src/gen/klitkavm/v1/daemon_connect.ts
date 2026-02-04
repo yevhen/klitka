@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { ExecRequest, ExecResponse, StartVMRequest, StartVMResponse, StopVMRequest, StopVMResponse } from "./daemon_pb";
+import { ExecRequest, ExecResponse, ExecStreamRequest, ExecStreamResponse, StartVMRequest, StartVMResponse, StopVMRequest, StopVMResponse } from "./daemon_pb";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -32,6 +32,15 @@ export const DaemonService = {
       I: ExecRequest,
       O: ExecResponse,
       kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc klitkavm.v1.DaemonService.ExecStream
+     */
+    execStream: {
+      name: "ExecStream",
+      I: ExecStreamRequest,
+      O: ExecStreamResponse,
+      kind: MethodKind.BiDiStreaming,
     },
     /**
      * @generated from rpc klitkavm.v1.DaemonService.StopVM

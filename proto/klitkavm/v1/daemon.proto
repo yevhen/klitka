@@ -9,6 +9,7 @@ option go_package = "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1;klitk
 service DaemonService {
   rpc StartVM (StartVMRequest) returns (StartVMResponse);
   rpc Exec (ExecRequest) returns (ExecResponse);
+  rpc ExecStream (stream ExecStreamRequest) returns (stream ExecStreamResponse);
   rpc StopVM (StopVMRequest) returns (StopVMResponse);
 }
 
@@ -28,6 +29,47 @@ message ExecResponse {
   int32 exit_code = 1;
   bytes stdout = 2;
   bytes stderr = 3;
+}
+
+message ExecStreamRequest {
+  oneof payload {
+    ExecStart start = 1;
+    ExecInput input = 2;
+    PtyResize resize = 3;
+  }
+}
+
+message ExecStreamResponse {
+  oneof payload {
+    ExecOutput output = 1;
+    ExecExit exit = 2;
+  }
+}
+
+message ExecStart {
+  string vm_id = 1;
+  string command = 2;
+  repeated string args = 3;
+  bool pty = 4;
+}
+
+message ExecInput {
+  bytes data = 1;
+  bool eof = 2;
+}
+
+message PtyResize {
+  uint32 rows = 1;
+  uint32 cols = 2;
+}
+
+message ExecOutput {
+  string stream = 1; // stdout | stderr
+  bytes data = 2;
+}
+
+message ExecExit {
+  int32 exit_code = 1;
 }
 
 message StopVMRequest {

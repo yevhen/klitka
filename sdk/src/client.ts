@@ -1,8 +1,16 @@
 import { createPromiseClient, type PromiseClient } from "@connectrpc/connect";
-import { createConnectTransport } from "@connectrpc/connect-node";
+import { createConnectTransport, Http2SessionManager } from "@connectrpc/connect-node";
 
 import { DaemonService } from "./gen/klitkavm/v1/daemon_connect";
-import { ExecRequest, StartVMRequest, StopVMRequest } from "./gen/klitkavm/v1/daemon_pb";
+import {
+  ExecInput,
+  ExecRequest,
+  ExecStart,
+  ExecStreamRequest,
+  PtyResize,
+  StartVMRequest,
+  StopVMRequest,
+} from "./gen/klitkavm/v1/daemon_pb";
 
 export type SandboxOptions = {
   baseUrl?: string;
@@ -14,17 +22,76 @@ export type ExecResult = {
   stderr: Uint8Array;
 };
 
+export type ShellOutput = {
+  stream: "stdout" | "stderr";
+  data: Uint8Array;
+};
+
+export class ShellSession {
+  readonly output: AsyncIterable<ShellOutput>;
+  readonly exit: Promise<number>;
+
+  private readonly requestQueue: AsyncQueue<ExecStreamRequest>;
+
+  constructor(
+    output: AsyncIterable<ShellOutput>,
+    exit: Promise<number>,
+    requestQueue: AsyncQueue<ExecStreamRequest>
+  ) {
+    this.output = output;
+    this.exit = exit;
+    this.requestQueue = requestQueue;
+  }
+
+  write(data: Uint8Array) {
+    if (!data || data.length === 0) return;
+    this.requestQueue.push(
+      new ExecStreamRequest({
+        payload: {
+          case: "input",
+          value: new ExecInput({ data }),
+        },
+      })
+    );
+  }
+
+  resize(rows: number, cols: number) {
+    this.requestQueue.push(
+      new ExecStreamRequest({
+        payload: {
+          case: "resize",
+          value: new PtyResize({ rows, cols }),
+        },
+      })
+    );
+  }
+
+  end() {
+    this.requestQueue.push(
+      new ExecStreamRequest({
+        payload: {
+          case: "input",
+          value: new ExecInput({ eof: true }),
+        },
+      })
+    );
+    this.requestQueue.close();
+  }
+}
+
 export class Sandbox {
   private vmId: string | null = null;
   private client: PromiseClient<typeof DaemonService>;
+  private closeTransport: () => void;
 
-  private constructor(client: PromiseClient<typeof DaemonService>) {
+  private constructor(client: PromiseClient<typeof DaemonService>, closeTransport: () => void) {
     this.client = client;
+    this.closeTransport = closeTransport;
   }
 
   static async start(options: SandboxOptions = {}): Promise<Sandbox> {
-    const client = createClient(options);
-    const sandbox = new Sandbox(client);
+    const { client, close } = createClient(options);
+    const sandbox = new Sandbox(client, close);
     const response = await client.startVM(new StartVMRequest({}));
     sandbox.vmId = response.vmId;
     return sandbox;
@@ -49,14 +116,139 @@ export class Sandbox {
     };
   }
 
+  shell(command: string | string[] = ["sh"]): ShellSession {
+    if (!this.vmId) {
+      throw new Error("sandbox not started");
+    }
+
+    const [cmd, args] = normalizeCommand(command);
+    const requestQueue = new AsyncQueue<ExecStreamRequest>();
+    requestQueue.push(
+      new ExecStreamRequest({
+        payload: {
+          case: "start",
+          value: new ExecStart({
+            vmId: this.vmId,
+            command: cmd,
+            args,
+            pty: true,
+          }),
+        },
+      })
+    );
+
+    const responses = this.client.execStream(requestQueue);
+
+    const outputQueue = new AsyncQueue<ShellOutput>();
+    let exitResolve: (code: number) => void = () => undefined;
+    let exitReject: (error: Error) => void = () => undefined;
+    let exitSettled = false;
+
+    const exit = new Promise<number>((resolve, reject) => {
+      exitResolve = (code) => {
+        if (!exitSettled) {
+          exitSettled = true;
+          resolve(code);
+        }
+      };
+      exitReject = (error) => {
+        if (!exitSettled) {
+          exitSettled = true;
+          reject(error);
+        }
+      };
+    });
+
+    void (async () => {
+      try {
+        for await (const response of responses) {
+          if (response.payload.case === "output") {
+            const output = response.payload.value;
+            const stream = output.stream === "stderr" ? "stderr" : "stdout";
+            outputQueue.push({ stream, data: output.data });
+          }
+          if (response.payload.case === "exit") {
+            exitResolve(response.payload.value.exitCode);
+            break;
+          }
+        }
+      } catch (err) {
+        exitReject(err instanceof Error ? err : new Error(String(err)));
+      } finally {
+        outputQueue.close();
+        if (!exitSettled) {
+          exitResolve(1);
+        }
+      }
+    })();
+
+    return new ShellSession(outputQueue, exit, requestQueue);
+  }
+
   async close(): Promise<void> {
-    if (!this.vmId) return;
-    await this.client.stopVM(new StopVMRequest({ vmId: this.vmId }));
-    this.vmId = null;
+    if (this.vmId) {
+      await this.client.stopVM(new StopVMRequest({ vmId: this.vmId }));
+      this.vmId = null;
+    }
+    this.closeTransport();
   }
 
   getId(): string | null {
     return this.vmId;
+  }
+}
+
+class AsyncQueue<T> implements AsyncIterable<T> {
+  private queue: T[] = [];
+  private resolvers: Array<(value: IteratorResult<T>) => void> = [];
+  private closed = false;
+
+  push(item: T) {
+    if (this.closed) {
+      throw new Error("queue closed");
+    }
+    const resolver = this.resolvers.shift();
+    if (resolver) {
+      resolver({ value: item, done: false });
+    } else {
+      this.queue.push(item);
+    }
+  }
+
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    while (this.resolvers.length > 0) {
+      const resolver = this.resolvers.shift();
+      if (resolver) {
+        resolver({ value: undefined as T, done: true });
+      }
+    }
+  }
+
+  [Symbol.asyncIterator](): AsyncIterator<T> {
+    return {
+      next: () => {
+        if (this.queue.length > 0) {
+          const value = this.queue.shift() as T;
+          return Promise.resolve({ value, done: false });
+        }
+        if (this.closed) {
+          return Promise.resolve({ value: undefined as T, done: true });
+        }
+        return new Promise<IteratorResult<T>>((resolve) => {
+          this.resolvers.push(resolve);
+        });
+      },
+      return: () => {
+        this.close();
+        return Promise.resolve({ value: undefined as T, done: true });
+      },
+      throw: (err) => {
+        this.close();
+        return Promise.reject(err);
+      },
+    };
   }
 }
 
@@ -76,8 +268,19 @@ function createClient(options: SandboxOptions) {
     throw new Error("baseUrl or KLITKAVM_TCP must be set for SDK connections");
   }
   const baseUrl = normalizeBaseUrl(rawBaseUrl);
-  const transport = createConnectTransport({ baseUrl, httpVersion: "1.1" });
-  return createPromiseClient(DaemonService, transport);
+  const sessionManager = new Http2SessionManager(baseUrl, {
+    idleConnectionTimeoutMs: 500,
+  });
+  const transport = createConnectTransport({
+    baseUrl,
+    httpVersion: "2",
+    sessionManager,
+  });
+  const client = createPromiseClient(DaemonService, transport);
+  return {
+    client,
+    close: () => sessionManager.abort(),
+  };
 }
 
 function normalizeBaseUrl(baseUrl: string) {

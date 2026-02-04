@@ -290,6 +290,12 @@ YAML/JSON accepted. Matches `SandboxOptions` schema.
 - VM crash → daemon signals `state=stopped` and exposes logs.
 - Network block → returns HTTP 403 with clear reason.
 
+## 9.1 Future improvements (track for later)
+- Replace ad‑hoc console logging with **structured logging** (daemon + CLI) and log levels.
+- Decide whether debug connection hooks stay behind env flags or move into structured logs.
+- Consider **build tags** (e.g. `-tags debug`) to exclude debug hooks from release binaries.
+- Add centralized log collection endpoint and retention policy.
+
 ---
 
 ## 10. Iterative Implementation Plan (E2E slices)
@@ -312,8 +318,8 @@ Definition of Done (applies to every slice):
 
 ### Slice 2 — Streaming IO + interactive shell
 **Goal:** Full stdout/stderr streaming and PTY shell.
-- [ ] Stream output frames over Connect.
-- [ ] CLI `shell` and SDK `shell` (pty, resize).
+- [x] Stream output frames over Connect.
+- [x] CLI `shell` and SDK `shell` (pty, resize).
 - ✅ Automated test: `e2e_shell_pty` opens a PTY, sends `echo hi; exit`, asserts streamed output.
 - ✅ DoD: PTY resize event tested (change cols/rows and verify no crash).
 

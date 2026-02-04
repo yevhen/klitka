@@ -1,16 +1,25 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"sync"
+	"syscall"
 
 	"connectrpc.com/connect"
+	"golang.org/x/net/http2"
+	"golang.org/x/term"
 
 	"github.com/klitkavm/klitkavm/daemon"
 	klitkavmv1 "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1"
@@ -27,6 +36,8 @@ func main() {
 	switch sub {
 	case "exec":
 		execCommand(os.Args[2:])
+	case "shell":
+		shellCommand(os.Args[2:])
 	case "start":
 		startCommand(os.Args[2:])
 	case "stop":
@@ -40,6 +51,7 @@ func main() {
 func printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  klitkavm exec [--socket path | --tcp host:port] -- <command>")
+	fmt.Println("  klitkavm shell [--socket path | --tcp host:port]")
 	fmt.Println("  klitkavm start [--socket path | --tcp host:port]")
 	fmt.Println("  klitkavm stop --id <vm-id> [--socket path | --tcp host:port]")
 }
@@ -103,6 +115,157 @@ func execCommand(args []string) {
 	}
 }
 
+func shellCommand(args []string) {
+	fs := flag.NewFlagSet("shell", flag.ExitOnError)
+	socket := fs.String("socket", socketDefault(), "unix socket path")
+	tcp := fs.String("tcp", tcpDefault(), "tcp address host:port")
+	fs.Parse(args)
+
+	client, _ := newClient(*socket, *tcp)
+	ctx := context.Background()
+
+	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{}))
+	if err != nil {
+		log.Fatalf("start vm failed: %v", err)
+	}
+	vmID := startResp.Msg.GetVmId()
+
+	stream := client.ExecStream(ctx)
+	sendMu := sync.Mutex{}
+	send := func(msg *klitkavmv1.ExecStreamRequest) error {
+		sendMu.Lock()
+		defer sendMu.Unlock()
+		return stream.Send(msg)
+	}
+
+	startMsg := &klitkavmv1.ExecStreamRequest{
+		Payload: &klitkavmv1.ExecStreamRequest_Start{
+			Start: &klitkavmv1.ExecStart{
+				VmId:    vmID,
+				Command: "sh",
+				Args:    []string{},
+				Pty:     true,
+			},
+		},
+	}
+	if err := send(startMsg); err != nil {
+		log.Fatalf("failed to start shell: %v", err)
+	}
+
+	fd := int(os.Stdin.Fd())
+	isTTY := term.IsTerminal(fd)
+	var restore func()
+	if isTTY {
+		state, err := term.MakeRaw(fd)
+		if err == nil {
+			restore = func() { _ = term.Restore(fd, state) }
+			defer restore()
+		}
+	}
+
+	if isTTY {
+		sendResize(fd, send)
+		watchResize(fd, send)
+	}
+
+	exitCodeCh := make(chan int32, 1)
+	readErrCh := make(chan error, 1)
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		reader := bufio.NewReader(os.Stdin)
+		buf := make([]byte, 4096)
+		for {
+			n, err := reader.Read(buf)
+			if n > 0 {
+				if sendErr := send(&klitkavmv1.ExecStreamRequest{
+					Payload: &klitkavmv1.ExecStreamRequest_Input{
+						Input: &klitkavmv1.ExecInput{Data: buf[:n]},
+					},
+				}); sendErr != nil {
+					return
+				}
+			}
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					_ = send(&klitkavmv1.ExecStreamRequest{
+						Payload: &klitkavmv1.ExecStreamRequest_Input{
+							Input: &klitkavmv1.ExecInput{Eof: true},
+						},
+					})
+					_ = stream.CloseRequest()
+				}
+				return
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			resp, err := stream.Receive()
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					readErrCh <- err
+				}
+				return
+			}
+			if output := resp.GetOutput(); output != nil {
+				if output.GetStream() == "stderr" {
+					_, _ = os.Stderr.Write(output.GetData())
+				} else {
+					_, _ = os.Stdout.Write(output.GetData())
+				}
+			}
+			if exit := resp.GetExit(); exit != nil {
+				exitCodeCh <- exit.GetExitCode()
+				return
+			}
+		}
+	}()
+
+	var exitCode int32
+	select {
+	case exitCode = <-exitCodeCh:
+	case err := <-readErrCh:
+		log.Printf("shell stream error: %v", err)
+		exitCode = 1
+	}
+
+	<-done
+
+	stopVM := connect.NewRequest(&klitkavmv1.StopVMRequest{VmId: vmID})
+	if _, stopErr := client.StopVM(ctx, stopVM); stopErr != nil {
+		log.Printf("stop vm failed: %v", stopErr)
+	}
+
+	if exitCode != 0 {
+		os.Exit(int(exitCode))
+	}
+}
+
+func sendResize(fd int, send func(*klitkavmv1.ExecStreamRequest) error) {
+	rows, cols, err := term.GetSize(fd)
+	if err != nil {
+		return
+	}
+	_ = send(&klitkavmv1.ExecStreamRequest{
+		Payload: &klitkavmv1.ExecStreamRequest_Resize{
+			Resize: &klitkavmv1.PtyResize{Rows: uint32(rows), Cols: uint32(cols)},
+		},
+	})
+}
+
+func watchResize(fd int, send func(*klitkavmv1.ExecStreamRequest) error) {
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGWINCH)
+	go func() {
+		for range ch {
+			sendResize(fd, send)
+		}
+	}()
+}
+
 func startCommand(args []string) {
 	fs := flag.NewFlagSet("start", flag.ExitOnError)
 	socket := fs.String("socket", socketDefault(), "unix socket path")
@@ -141,20 +304,30 @@ func stopCommand(args []string) {
 func newClient(socketPath, tcpAddr string) (klitkavmv1connect.DaemonServiceClient, string) {
 	if tcpAddr != "" {
 		baseURL := tcpBaseURL(tcpAddr)
-		return klitkavmv1connect.NewDaemonServiceClient(http.DefaultClient, baseURL), baseURL
+		client := &http.Client{Transport: http2Transport(func(network, addr string) (net.Conn, error) {
+			return (&net.Dialer{}).Dial(network, addr)
+		})}
+		return klitkavmv1connect.NewDaemonServiceClient(client, baseURL), baseURL
 	}
 	if socketPath == "" {
 		log.Fatal("either --socket or --tcp must be provided")
 	}
 
-	transport := &http.Transport{
-		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			return (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
-		},
-	}
+	transport := http2Transport(func(_ string, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).Dial("unix", socketPath)
+	})
 	client := &http.Client{Transport: transport}
 	baseURL := "http://unix"
 	return klitkavmv1connect.NewDaemonServiceClient(client, baseURL), baseURL
+}
+
+func http2Transport(dial func(network, addr string) (net.Conn, error)) *http2.Transport {
+	return &http2.Transport{
+		AllowHTTP: true,
+		DialTLS: func(network, addr string, _ *tls.Config) (net.Conn, error) {
+			return dial(network, addr)
+		},
+	}
 }
 
 func tcpBaseURL(addr string) string {

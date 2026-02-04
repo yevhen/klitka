@@ -37,6 +37,9 @@ const (
 	DaemonServiceStartVMProcedure = "/klitkavm.v1.DaemonService/StartVM"
 	// DaemonServiceExecProcedure is the fully-qualified name of the DaemonService's Exec RPC.
 	DaemonServiceExecProcedure = "/klitkavm.v1.DaemonService/Exec"
+	// DaemonServiceExecStreamProcedure is the fully-qualified name of the DaemonService's ExecStream
+	// RPC.
+	DaemonServiceExecStreamProcedure = "/klitkavm.v1.DaemonService/ExecStream"
 	// DaemonServiceStopVMProcedure is the fully-qualified name of the DaemonService's StopVM RPC.
 	DaemonServiceStopVMProcedure = "/klitkavm.v1.DaemonService/StopVM"
 )
@@ -45,6 +48,7 @@ const (
 type DaemonServiceClient interface {
 	StartVM(context.Context, *connect.Request[v1.StartVMRequest]) (*connect.Response[v1.StartVMResponse], error)
 	Exec(context.Context, *connect.Request[v1.ExecRequest]) (*connect.Response[v1.ExecResponse], error)
+	ExecStream(context.Context) *connect.BidiStreamForClient[v1.ExecStreamRequest, v1.ExecStreamResponse]
 	StopVM(context.Context, *connect.Request[v1.StopVMRequest]) (*connect.Response[v1.StopVMResponse], error)
 }
 
@@ -71,6 +75,12 @@ func NewDaemonServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(daemonServiceMethods.ByName("Exec")),
 			connect.WithClientOptions(opts...),
 		),
+		execStream: connect.NewClient[v1.ExecStreamRequest, v1.ExecStreamResponse](
+			httpClient,
+			baseURL+DaemonServiceExecStreamProcedure,
+			connect.WithSchema(daemonServiceMethods.ByName("ExecStream")),
+			connect.WithClientOptions(opts...),
+		),
 		stopVM: connect.NewClient[v1.StopVMRequest, v1.StopVMResponse](
 			httpClient,
 			baseURL+DaemonServiceStopVMProcedure,
@@ -82,9 +92,10 @@ func NewDaemonServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // daemonServiceClient implements DaemonServiceClient.
 type daemonServiceClient struct {
-	startVM *connect.Client[v1.StartVMRequest, v1.StartVMResponse]
-	exec    *connect.Client[v1.ExecRequest, v1.ExecResponse]
-	stopVM  *connect.Client[v1.StopVMRequest, v1.StopVMResponse]
+	startVM    *connect.Client[v1.StartVMRequest, v1.StartVMResponse]
+	exec       *connect.Client[v1.ExecRequest, v1.ExecResponse]
+	execStream *connect.Client[v1.ExecStreamRequest, v1.ExecStreamResponse]
+	stopVM     *connect.Client[v1.StopVMRequest, v1.StopVMResponse]
 }
 
 // StartVM calls klitkavm.v1.DaemonService.StartVM.
@@ -97,6 +108,11 @@ func (c *daemonServiceClient) Exec(ctx context.Context, req *connect.Request[v1.
 	return c.exec.CallUnary(ctx, req)
 }
 
+// ExecStream calls klitkavm.v1.DaemonService.ExecStream.
+func (c *daemonServiceClient) ExecStream(ctx context.Context) *connect.BidiStreamForClient[v1.ExecStreamRequest, v1.ExecStreamResponse] {
+	return c.execStream.CallBidiStream(ctx)
+}
+
 // StopVM calls klitkavm.v1.DaemonService.StopVM.
 func (c *daemonServiceClient) StopVM(ctx context.Context, req *connect.Request[v1.StopVMRequest]) (*connect.Response[v1.StopVMResponse], error) {
 	return c.stopVM.CallUnary(ctx, req)
@@ -106,6 +122,7 @@ func (c *daemonServiceClient) StopVM(ctx context.Context, req *connect.Request[v
 type DaemonServiceHandler interface {
 	StartVM(context.Context, *connect.Request[v1.StartVMRequest]) (*connect.Response[v1.StartVMResponse], error)
 	Exec(context.Context, *connect.Request[v1.ExecRequest]) (*connect.Response[v1.ExecResponse], error)
+	ExecStream(context.Context, *connect.BidiStream[v1.ExecStreamRequest, v1.ExecStreamResponse]) error
 	StopVM(context.Context, *connect.Request[v1.StopVMRequest]) (*connect.Response[v1.StopVMResponse], error)
 }
 
@@ -128,6 +145,12 @@ func NewDaemonServiceHandler(svc DaemonServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(daemonServiceMethods.ByName("Exec")),
 		connect.WithHandlerOptions(opts...),
 	)
+	daemonServiceExecStreamHandler := connect.NewBidiStreamHandler(
+		DaemonServiceExecStreamProcedure,
+		svc.ExecStream,
+		connect.WithSchema(daemonServiceMethods.ByName("ExecStream")),
+		connect.WithHandlerOptions(opts...),
+	)
 	daemonServiceStopVMHandler := connect.NewUnaryHandler(
 		DaemonServiceStopVMProcedure,
 		svc.StopVM,
@@ -140,6 +163,8 @@ func NewDaemonServiceHandler(svc DaemonServiceHandler, opts ...connect.HandlerOp
 			daemonServiceStartVMHandler.ServeHTTP(w, r)
 		case DaemonServiceExecProcedure:
 			daemonServiceExecHandler.ServeHTTP(w, r)
+		case DaemonServiceExecStreamProcedure:
+			daemonServiceExecStreamHandler.ServeHTTP(w, r)
 		case DaemonServiceStopVMProcedure:
 			daemonServiceStopVMHandler.ServeHTTP(w, r)
 		default:
@@ -157,6 +182,10 @@ func (UnimplementedDaemonServiceHandler) StartVM(context.Context, *connect.Reque
 
 func (UnimplementedDaemonServiceHandler) Exec(context.Context, *connect.Request[v1.ExecRequest]) (*connect.Response[v1.ExecResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("klitkavm.v1.DaemonService.Exec is not implemented"))
+}
+
+func (UnimplementedDaemonServiceHandler) ExecStream(context.Context, *connect.BidiStream[v1.ExecStreamRequest, v1.ExecStreamResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("klitkavm.v1.DaemonService.ExecStream is not implemented"))
 }
 
 func (UnimplementedDaemonServiceHandler) StopVM(context.Context, *connect.Request[v1.StopVMRequest]) (*connect.Response[v1.StopVMResponse], error) {

@@ -8,6 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 )
 
 type ServerOptions struct {
@@ -28,7 +31,7 @@ func StartServer(handler http.Handler, options ServerOptions) (*Server, error) {
 		if err != nil {
 			return nil, fmt.Errorf("listen tcp %s: %w", options.TCPAddr, err)
 		}
-		listeners = append(listeners, listener)
+		listeners = append(listeners, wrapDebugListener(listener, "tcp"))
 	}
 
 	socketPath := options.SocketPath
@@ -44,14 +47,15 @@ func StartServer(handler http.Handler, options ServerOptions) (*Server, error) {
 		if err != nil {
 			return nil, fmt.Errorf("listen unix %s: %w", socketPath, err)
 		}
-		listeners = append(listeners, listener)
+		listeners = append(listeners, wrapDebugListener(listener, "unix"))
 	}
 
 	if len(listeners) == 0 {
 		return nil, fmt.Errorf("no listeners configured")
 	}
 
-	server := &http.Server{Handler: handler}
+	h2cHandler := h2c.NewHandler(handler, &http2.Server{})
+	server := &http.Server{Handler: wrapDebugHandler(h2cHandler)}
 	for _, listener := range listeners {
 		go func(l net.Listener) {
 			if err := server.Serve(l); err != nil && err != http.ErrServerClosed {

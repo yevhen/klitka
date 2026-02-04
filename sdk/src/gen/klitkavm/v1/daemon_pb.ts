@@ -173,6 +173,336 @@ export class ExecResponse extends Message<ExecResponse> {
 }
 
 /**
+ * @generated from message klitkavm.v1.ExecStreamRequest
+ */
+export class ExecStreamRequest extends Message<ExecStreamRequest> {
+  /**
+   * @generated from oneof klitkavm.v1.ExecStreamRequest.payload
+   */
+  payload: {
+    /**
+     * @generated from field: klitkavm.v1.ExecStart start = 1;
+     */
+    value: ExecStart;
+    case: "start";
+  } | {
+    /**
+     * @generated from field: klitkavm.v1.ExecInput input = 2;
+     */
+    value: ExecInput;
+    case: "input";
+  } | {
+    /**
+     * @generated from field: klitkavm.v1.PtyResize resize = 3;
+     */
+    value: PtyResize;
+    case: "resize";
+  } | { case: undefined; value?: undefined } = { case: undefined };
+
+  constructor(data?: PartialMessage<ExecStreamRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "klitkavm.v1.ExecStreamRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "start", kind: "message", T: ExecStart, oneof: "payload" },
+    { no: 2, name: "input", kind: "message", T: ExecInput, oneof: "payload" },
+    { no: 3, name: "resize", kind: "message", T: PtyResize, oneof: "payload" },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ExecStreamRequest {
+    return new ExecStreamRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ExecStreamRequest {
+    return new ExecStreamRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ExecStreamRequest {
+    return new ExecStreamRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ExecStreamRequest | PlainMessage<ExecStreamRequest> | undefined, b: ExecStreamRequest | PlainMessage<ExecStreamRequest> | undefined): boolean {
+    return proto3.util.equals(ExecStreamRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message klitkavm.v1.ExecStreamResponse
+ */
+export class ExecStreamResponse extends Message<ExecStreamResponse> {
+  /**
+   * @generated from oneof klitkavm.v1.ExecStreamResponse.payload
+   */
+  payload: {
+    /**
+     * @generated from field: klitkavm.v1.ExecOutput output = 1;
+     */
+    value: ExecOutput;
+    case: "output";
+  } | {
+    /**
+     * @generated from field: klitkavm.v1.ExecExit exit = 2;
+     */
+    value: ExecExit;
+    case: "exit";
+  } | { case: undefined; value?: undefined } = { case: undefined };
+
+  constructor(data?: PartialMessage<ExecStreamResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "klitkavm.v1.ExecStreamResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "output", kind: "message", T: ExecOutput, oneof: "payload" },
+    { no: 2, name: "exit", kind: "message", T: ExecExit, oneof: "payload" },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ExecStreamResponse {
+    return new ExecStreamResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ExecStreamResponse {
+    return new ExecStreamResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ExecStreamResponse {
+    return new ExecStreamResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ExecStreamResponse | PlainMessage<ExecStreamResponse> | undefined, b: ExecStreamResponse | PlainMessage<ExecStreamResponse> | undefined): boolean {
+    return proto3.util.equals(ExecStreamResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message klitkavm.v1.ExecStart
+ */
+export class ExecStart extends Message<ExecStart> {
+  /**
+   * @generated from field: string vm_id = 1;
+   */
+  vmId = "";
+
+  /**
+   * @generated from field: string command = 2;
+   */
+  command = "";
+
+  /**
+   * @generated from field: repeated string args = 3;
+   */
+  args: string[] = [];
+
+  /**
+   * @generated from field: bool pty = 4;
+   */
+  pty = false;
+
+  constructor(data?: PartialMessage<ExecStart>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "klitkavm.v1.ExecStart";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "vm_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "command", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "args", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 4, name: "pty", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ExecStart {
+    return new ExecStart().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ExecStart {
+    return new ExecStart().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ExecStart {
+    return new ExecStart().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ExecStart | PlainMessage<ExecStart> | undefined, b: ExecStart | PlainMessage<ExecStart> | undefined): boolean {
+    return proto3.util.equals(ExecStart, a, b);
+  }
+}
+
+/**
+ * @generated from message klitkavm.v1.ExecInput
+ */
+export class ExecInput extends Message<ExecInput> {
+  /**
+   * @generated from field: bytes data = 1;
+   */
+  data = new Uint8Array(0);
+
+  /**
+   * @generated from field: bool eof = 2;
+   */
+  eof = false;
+
+  constructor(data?: PartialMessage<ExecInput>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "klitkavm.v1.ExecInput";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "data", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
+    { no: 2, name: "eof", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ExecInput {
+    return new ExecInput().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ExecInput {
+    return new ExecInput().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ExecInput {
+    return new ExecInput().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ExecInput | PlainMessage<ExecInput> | undefined, b: ExecInput | PlainMessage<ExecInput> | undefined): boolean {
+    return proto3.util.equals(ExecInput, a, b);
+  }
+}
+
+/**
+ * @generated from message klitkavm.v1.PtyResize
+ */
+export class PtyResize extends Message<PtyResize> {
+  /**
+   * @generated from field: uint32 rows = 1;
+   */
+  rows = 0;
+
+  /**
+   * @generated from field: uint32 cols = 2;
+   */
+  cols = 0;
+
+  constructor(data?: PartialMessage<PtyResize>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "klitkavm.v1.PtyResize";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "rows", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 2, name: "cols", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PtyResize {
+    return new PtyResize().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PtyResize {
+    return new PtyResize().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PtyResize {
+    return new PtyResize().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PtyResize | PlainMessage<PtyResize> | undefined, b: PtyResize | PlainMessage<PtyResize> | undefined): boolean {
+    return proto3.util.equals(PtyResize, a, b);
+  }
+}
+
+/**
+ * @generated from message klitkavm.v1.ExecOutput
+ */
+export class ExecOutput extends Message<ExecOutput> {
+  /**
+   * stdout | stderr
+   *
+   * @generated from field: string stream = 1;
+   */
+  stream = "";
+
+  /**
+   * @generated from field: bytes data = 2;
+   */
+  data = new Uint8Array(0);
+
+  constructor(data?: PartialMessage<ExecOutput>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "klitkavm.v1.ExecOutput";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "stream", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "data", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ExecOutput {
+    return new ExecOutput().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ExecOutput {
+    return new ExecOutput().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ExecOutput {
+    return new ExecOutput().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ExecOutput | PlainMessage<ExecOutput> | undefined, b: ExecOutput | PlainMessage<ExecOutput> | undefined): boolean {
+    return proto3.util.equals(ExecOutput, a, b);
+  }
+}
+
+/**
+ * @generated from message klitkavm.v1.ExecExit
+ */
+export class ExecExit extends Message<ExecExit> {
+  /**
+   * @generated from field: int32 exit_code = 1;
+   */
+  exitCode = 0;
+
+  constructor(data?: PartialMessage<ExecExit>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "klitkavm.v1.ExecExit";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "exit_code", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ExecExit {
+    return new ExecExit().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ExecExit {
+    return new ExecExit().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ExecExit {
+    return new ExecExit().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ExecExit | PlainMessage<ExecExit> | undefined, b: ExecExit | PlainMessage<ExecExit> | undefined): boolean {
+    return proto3.util.equals(ExecExit, a, b);
+  }
+}
+
+/**
  * @generated from message klitkavm.v1.StopVMRequest
  */
 export class StopVMRequest extends Message<StopVMRequest> {
