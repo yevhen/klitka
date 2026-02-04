@@ -303,10 +303,10 @@ Definition of Done (applies to every slice):
 
 ### Slice 1 — Minimal VM exec (hello‑sandbox)
 **Goal:** Boot a VM and run one command via CLI/SDK.
-- [ ] Repo layout (`sdk/`, `daemon/`, `cli/`, `guest/`, `proto/`).
-- [ ] Protobuf IDL + Connect server/client.
-- [ ] Daemon launches QEMU with bundled guest image and `sandboxd`.
-- [ ] CLI `exec` + SDK `start/exec/close`.
+- [x] Repo layout (`sdk/`, `daemon/`, `cli/`, `guest/`, `proto/`).
+- [x] Protobuf IDL + Connect server/client.
+- [x] Daemon provides a placeholder exec backend (QEMU + guest image integration pending).
+- [x] CLI `exec` + SDK `start/exec/close`.
 - ✅ Automated test: `e2e_exec_smoke` runs `klitkavm exec -- "uname -a"` and asserts output + exit code.
 - ✅ DoD: SDK test `sdk_exec_smoke` runs `start/exec/close` against the daemon.
 

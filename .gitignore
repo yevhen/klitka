@@ -1,0 +1,5 @@
+sdk/node_modules
+sdk/dist
+*.sock
+*.log
+.DS_Store

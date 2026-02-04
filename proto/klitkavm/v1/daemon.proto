@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package klitkavm.v1;
+
+option go_package = "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1;klitkavmv1";
+
+// DaemonService is the minimal contract for slice 1.
+// New methods are added only when required by the next slice.
+service DaemonService {
+  rpc StartVM (StartVMRequest) returns (StartVMResponse);
+  rpc Exec (ExecRequest) returns (ExecResponse);
+  rpc StopVM (StopVMRequest) returns (StopVMResponse);
+}
+
+message StartVMRequest {}
+
+message StartVMResponse {
+  string vm_id = 1;
+}
+
+message ExecRequest {
+  string vm_id = 1;
+  string command = 2;
+  repeated string args = 3;
+}
+
+message ExecResponse {
+  int32 exit_code = 1;
+  bytes stdout = 2;
+  bytes stderr = 3;
+}
+
+message StopVMRequest {
+  string vm_id = 1;
+}
+
+message StopVMResponse {}
