@@ -399,8 +399,8 @@ Definition of Done (applies to every slice):
 
 ### Slice 7 — WSL2 bootstrap
 **Goal:** Windows support via WSL2.
-- [ ] Windows CLI bootstraps WSL2 distro and daemon.
-- [ ] TCP IPC to WSL2 daemon from Windows SDK/CLI.
+- [x] Windows CLI bootstraps WSL2 distro and daemon.
+- [x] TCP IPC to WSL2 daemon from Windows SDK/CLI.
 - ✅ Automated test: `e2e_wsl2_smoke` runs `klitkavm.exe exec -- "uname -a"` on Windows runners.
 
 ### Slice 8 — Packaging + smoke tests

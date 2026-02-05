@@ -74,12 +74,21 @@ func execCommand(args []string) {
 		log.Fatal("exec requires a command")
 	}
 
-	client, baseURL := newClient(*socket, *tcp)
+	conn, err := newClient(*socket, *tcp)
+	if err != nil {
+		log.Fatalf("connect failed: %v", err)
+	}
+	client := conn.client
+	baseURL := conn.baseURL
 	ctx := context.Background()
 
 	mounts, err := parseMountFlags(mountArgs)
 	if err != nil {
 		log.Fatalf("invalid mount flag: %v", err)
+	}
+	mounts, err = rewriteMountsForWsl(ctx, conn.wsl, mounts)
+	if err != nil {
+		log.Fatalf("invalid mount path: %v", err)
 	}
 
 	secrets, err := parseSecretFlags(secretArgs)
@@ -153,12 +162,20 @@ func shellCommand(args []string) {
 	fs.Var(&secretArgs, "secret", "secret in format NAME@host[,host...][:header][:format][=VALUE] (VALUE defaults to $NAME)")
 	fs.Parse(args)
 
-	client, _ := newClient(*socket, *tcp)
+	conn, err := newClient(*socket, *tcp)
+	if err != nil {
+		log.Fatalf("connect failed: %v", err)
+	}
+	client := conn.client
 	ctx := context.Background()
 
 	mounts, err := parseMountFlags(mountArgs)
 	if err != nil {
 		log.Fatalf("invalid mount flag: %v", err)
+	}
+	mounts, err = rewriteMountsForWsl(ctx, conn.wsl, mounts)
+	if err != nil {
+		log.Fatalf("invalid mount path: %v", err)
 	}
 
 	secrets, err := parseSecretFlags(secretArgs)
@@ -327,12 +344,20 @@ func startCommand(args []string) {
 	fs.Var(&secretArgs, "secret", "secret in format NAME@host[,host...][:header][:format][=VALUE] (VALUE defaults to $NAME)")
 	fs.Parse(args)
 
-	client, _ := newClient(*socket, *tcp)
+	conn, err := newClient(*socket, *tcp)
+	if err != nil {
+		log.Fatalf("connect failed: %v", err)
+	}
+	client := conn.client
 	ctx := context.Background()
 
 	mounts, err := parseMountFlags(mountArgs)
 	if err != nil {
 		log.Fatalf("invalid mount flag: %v", err)
+	}
+	mounts, err = rewriteMountsForWsl(ctx, conn.wsl, mounts)
+	if err != nil {
+		log.Fatalf("invalid mount path: %v", err)
 	}
 
 	secrets, err := parseSecretFlags(secretArgs)
@@ -363,9 +388,13 @@ func stopCommand(args []string) {
 		log.Fatal("stop requires --id")
 	}
 
-	client, _ := newClient(*socket, *tcp)
+	conn, err := newClient(*socket, *tcp)
+	if err != nil {
+		log.Fatalf("connect failed: %v", err)
+	}
+	client := conn.client
 	ctx := context.Background()
-	_, err := client.StopVM(ctx, connect.NewRequest(&klitkavmv1.StopVMRequest{VmId: *vmID}))
+	_, err = client.StopVM(ctx, connect.NewRequest(&klitkavmv1.StopVMRequest{VmId: *vmID}))
 	if err != nil {
 		log.Fatalf("stop vm failed: %v", err)
 	}
@@ -400,22 +429,18 @@ func parseMountFlags(flags mountFlag) ([]*klitkavmv1.Mount, error) {
 
 	mounts := make([]*klitkavmv1.Mount, 0, len(flags))
 	for _, item := range flags {
-		parts := strings.SplitN(item, ":", 3)
-		if len(parts) < 2 {
-			return nil, fmt.Errorf("invalid mount format: %q", item)
+		hostPath, guestPath, modeRaw, err := splitMountSpec(item)
+		if err != nil {
+			return nil, err
 		}
-		hostPath := strings.TrimSpace(parts[0])
-		guestPath := strings.TrimSpace(parts[1])
 		mode := klitkavmv1.MountMode_MOUNT_MODE_RO
-		if len(parts) == 3 {
-			switch strings.ToLower(strings.TrimSpace(parts[2])) {
-			case "ro", "":
-				mode = klitkavmv1.MountMode_MOUNT_MODE_RO
-			case "rw":
-				mode = klitkavmv1.MountMode_MOUNT_MODE_RW
-			default:
-				return nil, fmt.Errorf("invalid mount mode: %q", parts[2])
-			}
+		switch strings.ToLower(strings.TrimSpace(modeRaw)) {
+		case "", "ro":
+			mode = klitkavmv1.MountMode_MOUNT_MODE_RO
+		case "rw":
+			mode = klitkavmv1.MountMode_MOUNT_MODE_RW
+		default:
+			return nil, fmt.Errorf("invalid mount mode: %q", modeRaw)
 		}
 		if hostPath == "" || guestPath == "" {
 			return nil, fmt.Errorf("invalid mount format: %q", item)
@@ -428,6 +453,33 @@ func parseMountFlags(flags mountFlag) ([]*klitkavmv1.Mount, error) {
 	}
 
 	return mounts, nil
+}
+
+func splitMountSpec(raw string) (string, string, string, error) {
+	item := strings.TrimSpace(raw)
+	if item == "" {
+		return "", "", "", fmt.Errorf("invalid mount format: %q", raw)
+	}
+
+	mode := ""
+	withoutMode := item
+	lastColon := strings.LastIndex(item, ":")
+	if lastColon >= 0 {
+		candidate := strings.TrimSpace(item[lastColon+1:])
+		if candidate == "ro" || candidate == "rw" {
+			mode = candidate
+			withoutMode = strings.TrimSpace(item[:lastColon])
+		}
+	}
+
+	delim := strings.LastIndex(withoutMode, ":")
+	if delim < 0 {
+		return "", "", "", fmt.Errorf("invalid mount format: %q", raw)
+	}
+
+	hostPath := strings.TrimSpace(withoutMode[:delim])
+	guestPath := strings.TrimSpace(withoutMode[delim+1:])
+	return hostPath, guestPath, mode, nil
 }
 
 func parseSecretFlags(flags stringSliceFlag) ([]*klitkavmv1.Secret, error) {
@@ -560,16 +612,35 @@ func buildNetworkPolicy(allowHosts stringSliceFlag, blockPrivate bool) *klitkavm
 	}
 }
 
-func newClient(socketPath, tcpAddr string) (klitkavmv1connect.DaemonServiceClient, string) {
+type daemonConnection struct {
+	client  klitkavmv1connect.DaemonServiceClient
+	baseURL string
+	wsl     *wslContext
+}
+
+func newClient(socketPath, tcpAddr string) (daemonConnection, error) {
+	if isWindows() {
+		if socketPath != "" {
+			return daemonConnection{}, fmt.Errorf("unix sockets are not supported on Windows; use --tcp")
+		}
+		if tcpAddr == "" {
+			tcpAddr = defaultTcpAddr()
+		}
+		ctx := context.Background()
+		wsl, err := ensureWslDaemon(ctx, tcpAddr)
+		if err != nil {
+			return daemonConnection{}, err
+		}
+		client, baseURL := newTcpClient(tcpAddr)
+		return daemonConnection{client: client, baseURL: baseURL, wsl: wsl}, nil
+	}
+
 	if tcpAddr != "" {
-		baseURL := tcpBaseURL(tcpAddr)
-		client := &http.Client{Transport: http2Transport(func(network, addr string) (net.Conn, error) {
-			return (&net.Dialer{}).Dial(network, addr)
-		})}
-		return klitkavmv1connect.NewDaemonServiceClient(client, baseURL), baseURL
+		client, baseURL := newTcpClient(tcpAddr)
+		return daemonConnection{client: client, baseURL: baseURL}, nil
 	}
 	if socketPath == "" {
-		log.Fatal("either --socket or --tcp must be provided")
+		return daemonConnection{}, fmt.Errorf("either --socket or --tcp must be provided")
 	}
 
 	transport := http2Transport(func(_ string, _ string) (net.Conn, error) {
@@ -577,6 +648,14 @@ func newClient(socketPath, tcpAddr string) (klitkavmv1connect.DaemonServiceClien
 	})
 	client := &http.Client{Transport: transport}
 	baseURL := "http://unix"
+	return daemonConnection{client: klitkavmv1connect.NewDaemonServiceClient(client, baseURL), baseURL: baseURL}, nil
+}
+
+func newTcpClient(tcpAddr string) (klitkavmv1connect.DaemonServiceClient, string) {
+	baseURL := tcpBaseURL(tcpAddr)
+	client := &http.Client{Transport: http2Transport(func(network, addr string) (net.Conn, error) {
+		return (&net.Dialer{}).Dial(network, addr)
+	})}
 	return klitkavmv1connect.NewDaemonServiceClient(client, baseURL), baseURL
 }
 
@@ -604,5 +683,8 @@ func socketDefault() string {
 }
 
 func tcpDefault() string {
-	return os.Getenv("KLITKAVM_TCP")
+	if value := os.Getenv("KLITKAVM_TCP"); value != "" {
+		return value
+	}
+	return defaultTcpAddr()
 }
