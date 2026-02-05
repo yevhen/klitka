@@ -1,12 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
 
 import { Sandbox } from "../src/index.ts";
-
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+import { buildDaemonEnv, repoRoot } from "./helpers.ts";
 
 async function waitForDaemon(proc: ReturnType<typeof spawn>, timeoutMs = 15000): Promise<number> {
   const deadline = Date.now() + timeoutMs;
@@ -61,10 +58,12 @@ function concatChunks(chunks: Uint8Array[]) {
 }
 
 test("sdk shell smoke", async () => {
+  const daemonEnv = await buildDaemonEnv();
   const daemon = spawn("go", ["run", "./cmd/klitkavm-daemon", "--tcp", "127.0.0.1:0"], {
     cwd: repoRoot,
     stdio: "pipe",
     detached: true,
+    env: daemonEnv,
   });
 
   try {
@@ -81,8 +80,8 @@ test("sdk shell smoke", async () => {
     })();
 
     const encoder = new TextEncoder();
-    session.write(encoder.encode("echo hi\n"));
-    session.write(encoder.encode("exit\n"));
+    session.write(encoder.encode("echo hi\r\n"));
+    session.write(encoder.encode("exit\r\n"));
     session.end();
 
     const exitCode = await withTimeout(session.exit, 5000, "shell exit timeout");

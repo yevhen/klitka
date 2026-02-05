@@ -15,6 +15,7 @@ import (
 )
 
 func TestE2EExecSmoke(t *testing.T) {
+	requireVMBackend(t)
 	service := daemon.NewService()
 	path, handler := klitkavmv1connect.NewDaemonServiceHandler(service)
 	mux := http.NewServeMux()

@@ -1,14 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "node:fs/promises";
 import os from "node:os";
 
 import { Sandbox } from "../src/index.ts";
-
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+import { buildDaemonEnv, ensureVirtiofsd, repoRoot } from "./helpers.ts";
 
 async function waitForDaemon(proc: ReturnType<typeof spawn>, timeoutMs = 15000): Promise<number> {
   const deadline = Date.now() + timeoutMs;
@@ -51,11 +49,17 @@ async function waitForDaemon(proc: ReturnType<typeof spawn>, timeoutMs = 15000):
   });
 }
 
-test("sdk rw mount + memfs root", async () => {
+test("sdk rw mount + memfs root", async (t) => {
+  if (!await ensureVirtiofsd()) {
+    t.skip("virtiofsd not available");
+    return;
+  }
+  const daemonEnv = await buildDaemonEnv();
   const daemon = spawn("go", ["run", "./cmd/klitkavm-daemon", "--tcp", "127.0.0.1:0"], {
     cwd: repoRoot,
     stdio: "pipe",
     detached: true,
+    env: daemonEnv,
   });
 
   try {

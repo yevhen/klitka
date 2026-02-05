@@ -16,6 +16,7 @@ import (
 )
 
 func TestE2EShellPTY(t *testing.T) {
+	requireVMBackend(t)
 	service := daemon.NewService()
 	path, handler := klitkavmv1connect.NewDaemonServiceHandler(service)
 	mux := http.NewServeMux()
@@ -42,7 +43,7 @@ func TestE2EShellPTY(t *testing.T) {
 	cmd := exec.CommandContext(ctx, "go", "run", cliPath, "shell")
 	cmd.Env = append(os.Environ(), "KLITKAVM_TCP="+addr)
 	cmd.Dir = repoRoot
-	cmd.Stdin = strings.NewReader("echo hi\nexit\n")
+	cmd.Stdin = strings.NewReader("echo hi\r\nexit\r\n")
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
