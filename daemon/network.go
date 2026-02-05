@@ -1,13 +1,16 @@
 package daemon
 
 import (
+	"bufio"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -21,9 +24,10 @@ const proxyDialTimeout = 10 * time.Second
 const dnsLookupTimeout = 5 * time.Second
 
 type networkManager struct {
-	policy networkPolicy
-	proxy  *proxyServer
-	env    []string
+	policy     networkPolicy
+	proxy      *proxyServer
+	env        []string
+	caCertPath string
 }
 
 type networkPolicy struct {
@@ -33,17 +37,17 @@ type networkPolicy struct {
 }
 
 func newNetworkManager(req *klitkavmv1.StartVMRequest) (*networkManager, error) {
-	cfg := req.GetNetwork()
-	if cfg == nil {
+	policy := buildNetworkPolicy(req.GetNetwork())
+	secrets, secretEnv, err := buildSecrets(req.GetSecrets())
+	if err != nil {
+		return nil, err
+	}
+
+	if policy.isEmpty() && len(secrets) == 0 {
 		return nil, nil
 	}
 
-	policy := buildNetworkPolicy(cfg)
-	if policy.isEmpty() {
-		return nil, nil
-	}
-
-	proxy, err := newProxyServer(policy)
+	proxy, err := newProxyServer(policy, secrets)
 	if err != nil {
 		return nil, err
 	}
@@ -55,11 +59,18 @@ func newNetworkManager(req *klitkavmv1.StartVMRequest) (*networkManager, error) 
 		"http_proxy=" + proxyURL,
 		"https_proxy=" + proxyURL,
 	}
+	env = append(env, secretEnv...)
+
+	caCertPath := ""
+	if proxy.mitm != nil {
+		caCertPath = proxy.mitm.CertPath()
+	}
 
 	return &networkManager{
-		policy: policy,
-		proxy:  proxy,
-		env:    env,
+		policy:     policy,
+		proxy:      proxy,
+		env:        env,
+		caCertPath: caCertPath,
 	}, nil
 }
 
@@ -71,6 +82,9 @@ func (manager *networkManager) Close() error {
 }
 
 func buildNetworkPolicy(cfg *klitkavmv1.NetworkPolicy) networkPolicy {
+	if cfg == nil {
+		return networkPolicy{}
+	}
 	allow := normalizeHosts(cfg.GetAllowHosts())
 	deny := normalizeHosts(cfg.GetDenyHosts())
 	return networkPolicy{
@@ -107,20 +121,36 @@ type proxyServer struct {
 	server    *http.Server
 	policy    networkPolicy
 	transport *http.Transport
+	secrets   []secretSpec
+	mitm      *mitmCA
 }
 
-func newProxyServer(policy networkPolicy) (*proxyServer, error) {
+func newProxyServer(policy networkPolicy, secrets []secretSpec) (*proxyServer, error) {
 	listener, err := net.Listen("tcp", "0.0.0.0:0")
 	if err != nil {
 		return nil, err
 	}
 
+	transport, err := newProxyTransport()
+	if err != nil {
+		_ = listener.Close()
+		return nil, err
+	}
+
 	proxy := &proxyServer{
-		listener: listener,
-		policy:   policy,
-		transport: &http.Transport{
-			Proxy: nil,
-		},
+		listener:  listener,
+		policy:    policy,
+		transport: transport,
+		secrets:   secrets,
+	}
+
+	if len(secrets) > 0 {
+		ca, err := loadOrCreateCA()
+		if err != nil {
+			_ = listener.Close()
+			return nil, err
+		}
+		proxy.mitm = ca
 	}
 
 	server := &http.Server{Handler: proxy}
@@ -145,7 +175,11 @@ func (proxy *proxyServer) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	_ = proxy.server.Shutdown(ctx)
-	return proxy.listener.Close()
+	err := proxy.listener.Close()
+	if errors.Is(err, net.ErrClosed) {
+		return nil
+	}
+	return err
 }
 
 func (proxy *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -153,10 +187,10 @@ func (proxy *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		proxy.handleConnect(w, r)
 		return
 	}
-	proxy.handleHTTP(w, r)
+	proxy.handleHTTP(w, r, "http")
 }
 
-func (proxy *proxyServer) handleHTTP(w http.ResponseWriter, r *http.Request) {
+func (proxy *proxyServer) handleHTTP(w http.ResponseWriter, r *http.Request, scheme string) {
 	if r.URL == nil {
 		http.Error(w, "missing url", http.StatusBadRequest)
 		return
@@ -170,7 +204,7 @@ func (proxy *proxyServer) handleHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		targetURL = &url.URL{
-			Scheme:   "http",
+			Scheme:   scheme,
 			Host:     host,
 			Path:     r.URL.Path,
 			RawQuery: r.URL.RawQuery,
@@ -191,6 +225,7 @@ func (proxy *proxyServer) handleHTTP(w http.ResponseWriter, r *http.Request) {
 
 	outReq.Header = cloneHeader(r.Header)
 	stripProxyHeaders(outReq.Header)
+	proxy.applySecrets(host, outReq.Header)
 	outReq.Host = targetURL.Host
 
 	resp, err := proxy.transport.RoundTrip(outReq)
@@ -220,6 +255,15 @@ func (proxy *proxyServer) handleConnect(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if proxy.mitm != nil && shouldMitmHost(host, proxy.secrets) {
+		proxy.handleMitm(w, r, host)
+		return
+	}
+
+	proxy.handleConnectTunnel(w, r, host, port)
+}
+
+func (proxy *proxyServer) handleConnectTunnel(w http.ResponseWriter, r *http.Request, host, port string) {
 	dialer := net.Dialer{Timeout: proxyDialTimeout}
 	upstream, err := dialer.DialContext(r.Context(), "tcp", net.JoinHostPort(host, port))
 	if err != nil {
@@ -245,10 +289,98 @@ func (proxy *proxyServer) handleConnect(w http.ResponseWriter, r *http.Request) 
 	go proxyTunnel(clientConn, upstream)
 }
 
+func (proxy *proxyServer) handleMitm(w http.ResponseWriter, r *http.Request, host string) {
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		http.Error(w, "hijack not supported", http.StatusInternalServerError)
+		return
+	}
+	clientConn, _, err := hijacker.Hijack()
+	if err != nil {
+		return
+	}
+
+	_, _ = clientConn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
+
+	cert, err := proxy.mitm.certificateForHost(host)
+	if err != nil {
+		_ = clientConn.Close()
+		return
+	}
+
+	tlsConn := tls.Server(clientConn, &tls.Config{
+		Certificates: []tls.Certificate{*cert},
+		NextProtos:   []string{"http/1.1"},
+	})
+
+	if err := tlsConn.Handshake(); err != nil {
+		_ = tlsConn.Close()
+		return
+	}
+
+	proxy.serveMitm(tlsConn, host)
+}
+
+func (proxy *proxyServer) serveMitm(conn net.Conn, host string) {
+	defer func() {
+		_ = conn.Close()
+	}()
+
+	reader := bufio.NewReader(conn)
+	for {
+		req, err := http.ReadRequest(reader)
+		if err != nil {
+			return
+		}
+		req.RequestURI = ""
+
+		targetHost := req.Host
+		if targetHost == "" {
+			targetHost = host
+		}
+
+		req.URL.Scheme = "https"
+		req.URL.Host = targetHost
+		req.Host = targetHost
+
+		hostname := strings.ToLower(req.URL.Hostname())
+		if err := proxy.policy.checkHost(hostname); err != nil {
+			writeProxyError(conn, http.StatusForbidden, err.Error())
+			return
+		}
+
+		stripProxyHeaders(req.Header)
+		proxy.applySecrets(hostname, req.Header)
+
+		resp, err := proxy.transport.RoundTrip(req)
+		if err != nil {
+			writeProxyError(conn, http.StatusBadGateway, err.Error())
+			return
+		}
+		err = resp.Write(conn)
+		resp.Body.Close()
+		if err != nil {
+			return
+		}
+		if req.Close || resp.Close {
+			return
+		}
+	}
+}
+
 func proxyTunnel(dst net.Conn, src net.Conn) {
 	_, _ = io.Copy(dst, src)
 	_ = dst.Close()
 	_ = src.Close()
+}
+
+func writeProxyError(conn net.Conn, status int, message string) {
+	body := []byte(message)
+	statusText := http.StatusText(status)
+	if statusText == "" {
+		statusText = "Error"
+	}
+	_, _ = fmt.Fprintf(conn, "HTTP/1.1 %d %s\r\nContent-Length: %d\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n%s", status, statusText, len(body), body)
 }
 
 func (policy networkPolicy) checkHost(host string) error {
@@ -327,6 +459,10 @@ func isPrivateIP(ip net.IP) bool {
 	return false
 }
 
+func (proxy *proxyServer) applySecrets(host string, header http.Header) {
+	applySecrets(host, header, proxy.secrets)
+}
+
 func cloneHeader(header http.Header) http.Header {
 	out := make(http.Header, len(header))
 	copyHeader(out, header)
@@ -363,4 +499,15 @@ func splitHostPort(hostport string) (string, string) {
 
 func joinHostPort(host string, port int) string {
 	return net.JoinHostPort(host, fmt.Sprintf("%d", port))
+}
+
+func newProxyTransport() (*http.Transport, error) {
+	tlsConfig := &tls.Config{}
+	if strings.TrimSpace(os.Getenv("KLITKAVM_PROXY_INSECURE")) != "" {
+		tlsConfig.InsecureSkipVerify = true
+	}
+	return &http.Transport{
+		Proxy:           nil,
+		TLSClientConfig: tlsConfig,
+	}, nil
 }

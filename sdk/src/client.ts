@@ -11,6 +11,8 @@ import {
   MountMode,
   NetworkPolicy,
   PtyResize,
+  Secret,
+  SecretFormat,
   StartVMRequest,
   StopVMRequest,
 } from "./gen/klitkavm/v1/daemon_pb";
@@ -31,10 +33,18 @@ export type NetworkConfig = {
   blockPrivateRanges?: boolean;
 };
 
+export type SecretConfig = {
+  hosts: string[];
+  value: string;
+  header?: string;
+  format?: "bearer" | "raw";
+};
+
 export type SandboxOptions = {
   baseUrl?: string;
   fs?: FileSystemConfig;
   network?: NetworkConfig;
+  secrets?: Record<string, SecretConfig>;
 };
 
 export type ExecResult = {
@@ -117,6 +127,7 @@ export class Sandbox {
       new StartVMRequest({
         mounts: buildMounts(options.fs?.mounts),
         network: buildNetworkPolicy(options.network),
+        secrets: buildSecrets(options.secrets),
       })
     );
     sandbox.vmId = response.vmId;
@@ -349,6 +360,43 @@ function buildNetworkPolicy(network?: NetworkConfig): NetworkPolicy | undefined 
     denyHosts,
     blockPrivateRanges,
   });
+}
+
+function buildSecrets(secrets?: Record<string, SecretConfig>): Secret[] {
+  if (!secrets) {
+    return [];
+  }
+  const entries = Object.entries(secrets);
+  if (entries.length === 0) {
+    return [];
+  }
+
+  return entries.map(([name, config]) => {
+    const hosts = (config.hosts ?? []).filter(Boolean);
+    if (hosts.length === 0) {
+      throw new Error(`secret ${name} requires at least one host`);
+    }
+    if (!config.value) {
+      throw new Error(`secret ${name} requires a value`);
+    }
+    return new Secret({
+      name,
+      hosts,
+      value: config.value,
+      header: config.header ?? "",
+      format: secretFormatFromConfig(config.format),
+    });
+  });
+}
+
+function secretFormatFromConfig(format?: SecretConfig["format"]): SecretFormat {
+  if (format === "raw") {
+    return SecretFormat.RAW;
+  }
+  if (format === "bearer") {
+    return SecretFormat.BEARER;
+  }
+  return SecretFormat.UNSPECIFIED;
 }
 
 function mountModeFromConfig(mode?: MountConfig["mode"]): MountMode {

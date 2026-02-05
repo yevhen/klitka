@@ -21,6 +21,55 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type SecretFormat int32
+
+const (
+	SecretFormat_SECRET_FORMAT_UNSPECIFIED SecretFormat = 0
+	SecretFormat_SECRET_FORMAT_BEARER      SecretFormat = 1
+	SecretFormat_SECRET_FORMAT_RAW         SecretFormat = 2
+)
+
+// Enum value maps for SecretFormat.
+var (
+	SecretFormat_name = map[int32]string{
+		0: "SECRET_FORMAT_UNSPECIFIED",
+		1: "SECRET_FORMAT_BEARER",
+		2: "SECRET_FORMAT_RAW",
+	}
+	SecretFormat_value = map[string]int32{
+		"SECRET_FORMAT_UNSPECIFIED": 0,
+		"SECRET_FORMAT_BEARER":      1,
+		"SECRET_FORMAT_RAW":         2,
+	}
+)
+
+func (x SecretFormat) Enum() *SecretFormat {
+	p := new(SecretFormat)
+	*p = x
+	return p
+}
+
+func (x SecretFormat) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SecretFormat) Descriptor() protoreflect.EnumDescriptor {
+	return file_klitkavm_v1_daemon_proto_enumTypes[0].Descriptor()
+}
+
+func (SecretFormat) Type() protoreflect.EnumType {
+	return &file_klitkavm_v1_daemon_proto_enumTypes[0]
+}
+
+func (x SecretFormat) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SecretFormat.Descriptor instead.
+func (SecretFormat) EnumDescriptor() ([]byte, []int) {
+	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{0}
+}
+
 type MountMode int32
 
 const (
@@ -54,11 +103,11 @@ func (x MountMode) String() string {
 }
 
 func (MountMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_klitkavm_v1_daemon_proto_enumTypes[0].Descriptor()
+	return file_klitkavm_v1_daemon_proto_enumTypes[1].Descriptor()
 }
 
 func (MountMode) Type() protoreflect.EnumType {
-	return &file_klitkavm_v1_daemon_proto_enumTypes[0]
+	return &file_klitkavm_v1_daemon_proto_enumTypes[1]
 }
 
 func (x MountMode) Number() protoreflect.EnumNumber {
@@ -67,13 +116,14 @@ func (x MountMode) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use MountMode.Descriptor instead.
 func (MountMode) EnumDescriptor() ([]byte, []int) {
-	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{0}
+	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{1}
 }
 
 type StartVMRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Mounts        []*Mount               `protobuf:"bytes,1,rep,name=mounts,proto3" json:"mounts,omitempty"`
 	Network       *NetworkPolicy         `protobuf:"bytes,2,opt,name=network,proto3" json:"network,omitempty"`
+	Secrets       []*Secret              `protobuf:"bytes,3,rep,name=secrets,proto3" json:"secrets,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -118,6 +168,13 @@ func (x *StartVMRequest) GetMounts() []*Mount {
 func (x *StartVMRequest) GetNetwork() *NetworkPolicy {
 	if x != nil {
 		return x.Network
+	}
+	return nil
+}
+
+func (x *StartVMRequest) GetSecrets() []*Secret {
+	if x != nil {
+		return x.Secrets
 	}
 	return nil
 }
@@ -182,6 +239,82 @@ func (x *NetworkPolicy) GetBlockPrivateRanges() bool {
 	return false
 }
 
+type Secret struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Hosts         []string               `protobuf:"bytes,2,rep,name=hosts,proto3" json:"hosts,omitempty"`
+	Value         string                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	Header        string                 `protobuf:"bytes,4,opt,name=header,proto3" json:"header,omitempty"`
+	Format        SecretFormat           `protobuf:"varint,5,opt,name=format,proto3,enum=klitkavm.v1.SecretFormat" json:"format,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Secret) Reset() {
+	*x = Secret{}
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Secret) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Secret) ProtoMessage() {}
+
+func (x *Secret) ProtoReflect() protoreflect.Message {
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Secret.ProtoReflect.Descriptor instead.
+func (*Secret) Descriptor() ([]byte, []int) {
+	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Secret) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Secret) GetHosts() []string {
+	if x != nil {
+		return x.Hosts
+	}
+	return nil
+}
+
+func (x *Secret) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *Secret) GetHeader() string {
+	if x != nil {
+		return x.Header
+	}
+	return ""
+}
+
+func (x *Secret) GetFormat() SecretFormat {
+	if x != nil {
+		return x.Format
+	}
+	return SecretFormat_SECRET_FORMAT_UNSPECIFIED
+}
+
 type Mount struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	GuestPath     string                 `protobuf:"bytes,1,opt,name=guest_path,json=guestPath,proto3" json:"guest_path,omitempty"`
@@ -193,7 +326,7 @@ type Mount struct {
 
 func (x *Mount) Reset() {
 	*x = Mount{}
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[2]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -205,7 +338,7 @@ func (x *Mount) String() string {
 func (*Mount) ProtoMessage() {}
 
 func (x *Mount) ProtoReflect() protoreflect.Message {
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[2]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -218,7 +351,7 @@ func (x *Mount) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Mount.ProtoReflect.Descriptor instead.
 func (*Mount) Descriptor() ([]byte, []int) {
-	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{2}
+	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Mount) GetGuestPath() string {
@@ -251,7 +384,7 @@ type StartVMResponse struct {
 
 func (x *StartVMResponse) Reset() {
 	*x = StartVMResponse{}
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[3]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -263,7 +396,7 @@ func (x *StartVMResponse) String() string {
 func (*StartVMResponse) ProtoMessage() {}
 
 func (x *StartVMResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[3]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -276,7 +409,7 @@ func (x *StartVMResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartVMResponse.ProtoReflect.Descriptor instead.
 func (*StartVMResponse) Descriptor() ([]byte, []int) {
-	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{3}
+	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *StartVMResponse) GetVmId() string {
@@ -297,7 +430,7 @@ type ExecRequest struct {
 
 func (x *ExecRequest) Reset() {
 	*x = ExecRequest{}
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[4]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -309,7 +442,7 @@ func (x *ExecRequest) String() string {
 func (*ExecRequest) ProtoMessage() {}
 
 func (x *ExecRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[4]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -322,7 +455,7 @@ func (x *ExecRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecRequest.ProtoReflect.Descriptor instead.
 func (*ExecRequest) Descriptor() ([]byte, []int) {
-	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{4}
+	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ExecRequest) GetVmId() string {
@@ -357,7 +490,7 @@ type ExecResponse struct {
 
 func (x *ExecResponse) Reset() {
 	*x = ExecResponse{}
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[5]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -369,7 +502,7 @@ func (x *ExecResponse) String() string {
 func (*ExecResponse) ProtoMessage() {}
 
 func (x *ExecResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[5]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -382,7 +515,7 @@ func (x *ExecResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecResponse.ProtoReflect.Descriptor instead.
 func (*ExecResponse) Descriptor() ([]byte, []int) {
-	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{5}
+	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ExecResponse) GetExitCode() int32 {
@@ -420,7 +553,7 @@ type ExecStreamRequest struct {
 
 func (x *ExecStreamRequest) Reset() {
 	*x = ExecStreamRequest{}
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[6]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -432,7 +565,7 @@ func (x *ExecStreamRequest) String() string {
 func (*ExecStreamRequest) ProtoMessage() {}
 
 func (x *ExecStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[6]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -445,7 +578,7 @@ func (x *ExecStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecStreamRequest.ProtoReflect.Descriptor instead.
 func (*ExecStreamRequest) Descriptor() ([]byte, []int) {
-	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{6}
+	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ExecStreamRequest) GetPayload() isExecStreamRequest_Payload {
@@ -517,7 +650,7 @@ type ExecStreamResponse struct {
 
 func (x *ExecStreamResponse) Reset() {
 	*x = ExecStreamResponse{}
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[7]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -529,7 +662,7 @@ func (x *ExecStreamResponse) String() string {
 func (*ExecStreamResponse) ProtoMessage() {}
 
 func (x *ExecStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[7]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -542,7 +675,7 @@ func (x *ExecStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecStreamResponse.ProtoReflect.Descriptor instead.
 func (*ExecStreamResponse) Descriptor() ([]byte, []int) {
-	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{7}
+	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ExecStreamResponse) GetPayload() isExecStreamResponse_Payload {
@@ -598,7 +731,7 @@ type ExecStart struct {
 
 func (x *ExecStart) Reset() {
 	*x = ExecStart{}
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[8]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -610,7 +743,7 @@ func (x *ExecStart) String() string {
 func (*ExecStart) ProtoMessage() {}
 
 func (x *ExecStart) ProtoReflect() protoreflect.Message {
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[8]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -623,7 +756,7 @@ func (x *ExecStart) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecStart.ProtoReflect.Descriptor instead.
 func (*ExecStart) Descriptor() ([]byte, []int) {
-	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{8}
+	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ExecStart) GetVmId() string {
@@ -664,7 +797,7 @@ type ExecInput struct {
 
 func (x *ExecInput) Reset() {
 	*x = ExecInput{}
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[9]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -676,7 +809,7 @@ func (x *ExecInput) String() string {
 func (*ExecInput) ProtoMessage() {}
 
 func (x *ExecInput) ProtoReflect() protoreflect.Message {
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[9]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -689,7 +822,7 @@ func (x *ExecInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecInput.ProtoReflect.Descriptor instead.
 func (*ExecInput) Descriptor() ([]byte, []int) {
-	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{9}
+	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ExecInput) GetData() []byte {
@@ -716,7 +849,7 @@ type PtyResize struct {
 
 func (x *PtyResize) Reset() {
 	*x = PtyResize{}
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[10]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -728,7 +861,7 @@ func (x *PtyResize) String() string {
 func (*PtyResize) ProtoMessage() {}
 
 func (x *PtyResize) ProtoReflect() protoreflect.Message {
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[10]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -741,7 +874,7 @@ func (x *PtyResize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PtyResize.ProtoReflect.Descriptor instead.
 func (*PtyResize) Descriptor() ([]byte, []int) {
-	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{10}
+	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *PtyResize) GetRows() uint32 {
@@ -768,7 +901,7 @@ type ExecOutput struct {
 
 func (x *ExecOutput) Reset() {
 	*x = ExecOutput{}
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[11]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -780,7 +913,7 @@ func (x *ExecOutput) String() string {
 func (*ExecOutput) ProtoMessage() {}
 
 func (x *ExecOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[11]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -793,7 +926,7 @@ func (x *ExecOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecOutput.ProtoReflect.Descriptor instead.
 func (*ExecOutput) Descriptor() ([]byte, []int) {
-	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{11}
+	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ExecOutput) GetStream() string {
@@ -819,7 +952,7 @@ type ExecExit struct {
 
 func (x *ExecExit) Reset() {
 	*x = ExecExit{}
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[12]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -831,7 +964,7 @@ func (x *ExecExit) String() string {
 func (*ExecExit) ProtoMessage() {}
 
 func (x *ExecExit) ProtoReflect() protoreflect.Message {
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[12]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -844,7 +977,7 @@ func (x *ExecExit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecExit.ProtoReflect.Descriptor instead.
 func (*ExecExit) Descriptor() ([]byte, []int) {
-	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{12}
+	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ExecExit) GetExitCode() int32 {
@@ -863,7 +996,7 @@ type StopVMRequest struct {
 
 func (x *StopVMRequest) Reset() {
 	*x = StopVMRequest{}
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[13]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -875,7 +1008,7 @@ func (x *StopVMRequest) String() string {
 func (*StopVMRequest) ProtoMessage() {}
 
 func (x *StopVMRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[13]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -888,7 +1021,7 @@ func (x *StopVMRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopVMRequest.ProtoReflect.Descriptor instead.
 func (*StopVMRequest) Descriptor() ([]byte, []int) {
-	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{13}
+	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *StopVMRequest) GetVmId() string {
@@ -906,7 +1039,7 @@ type StopVMResponse struct {
 
 func (x *StopVMResponse) Reset() {
 	*x = StopVMResponse{}
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[14]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -918,7 +1051,7 @@ func (x *StopVMResponse) String() string {
 func (*StopVMResponse) ProtoMessage() {}
 
 func (x *StopVMResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_klitkavm_v1_daemon_proto_msgTypes[14]
+	mi := &file_klitkavm_v1_daemon_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -931,23 +1064,30 @@ func (x *StopVMResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopVMResponse.ProtoReflect.Descriptor instead.
 func (*StopVMResponse) Descriptor() ([]byte, []int) {
-	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{14}
+	return file_klitkavm_v1_daemon_proto_rawDescGZIP(), []int{15}
 }
 
 var File_klitkavm_v1_daemon_proto protoreflect.FileDescriptor
 
 const file_klitkavm_v1_daemon_proto_rawDesc = "" +
 	"\n" +
-	"\x18klitkavm/v1/daemon.proto\x12\vklitkavm.v1\"r\n" +
+	"\x18klitkavm/v1/daemon.proto\x12\vklitkavm.v1\"\xa1\x01\n" +
 	"\x0eStartVMRequest\x12*\n" +
 	"\x06mounts\x18\x01 \x03(\v2\x12.klitkavm.v1.MountR\x06mounts\x124\n" +
-	"\anetwork\x18\x02 \x01(\v2\x1a.klitkavm.v1.NetworkPolicyR\anetwork\"\x81\x01\n" +
+	"\anetwork\x18\x02 \x01(\v2\x1a.klitkavm.v1.NetworkPolicyR\anetwork\x12-\n" +
+	"\asecrets\x18\x03 \x03(\v2\x13.klitkavm.v1.SecretR\asecrets\"\x81\x01\n" +
 	"\rNetworkPolicy\x12\x1f\n" +
 	"\vallow_hosts\x18\x01 \x03(\tR\n" +
 	"allowHosts\x12\x1d\n" +
 	"\n" +
 	"deny_hosts\x18\x02 \x03(\tR\tdenyHosts\x120\n" +
-	"\x14block_private_ranges\x18\x03 \x01(\bR\x12blockPrivateRanges\"o\n" +
+	"\x14block_private_ranges\x18\x03 \x01(\bR\x12blockPrivateRanges\"\x93\x01\n" +
+	"\x06Secret\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05hosts\x18\x02 \x03(\tR\x05hosts\x12\x14\n" +
+	"\x05value\x18\x03 \x01(\tR\x05value\x12\x16\n" +
+	"\x06header\x18\x04 \x01(\tR\x06header\x121\n" +
+	"\x06format\x18\x05 \x01(\x0e2\x19.klitkavm.v1.SecretFormatR\x06format\"o\n" +
 	"\x05Mount\x12\x1d\n" +
 	"\n" +
 	"guest_path\x18\x01 \x01(\tR\tguestPath\x12\x1b\n" +
@@ -991,7 +1131,11 @@ const file_klitkavm_v1_daemon_proto_rawDesc = "" +
 	"\texit_code\x18\x01 \x01(\x05R\bexitCode\"$\n" +
 	"\rStopVMRequest\x12\x13\n" +
 	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\"\x10\n" +
-	"\x0eStopVMResponse*M\n" +
+	"\x0eStopVMResponse*^\n" +
+	"\fSecretFormat\x12\x1d\n" +
+	"\x19SECRET_FORMAT_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14SECRET_FORMAT_BEARER\x10\x01\x12\x15\n" +
+	"\x11SECRET_FORMAT_RAW\x10\x02*M\n" +
 	"\tMountMode\x12\x1a\n" +
 	"\x16MOUNT_MODE_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rMOUNT_MODE_RO\x10\x01\x12\x11\n" +
@@ -1015,48 +1159,52 @@ func file_klitkavm_v1_daemon_proto_rawDescGZIP() []byte {
 	return file_klitkavm_v1_daemon_proto_rawDescData
 }
 
-var file_klitkavm_v1_daemon_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_klitkavm_v1_daemon_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_klitkavm_v1_daemon_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_klitkavm_v1_daemon_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_klitkavm_v1_daemon_proto_goTypes = []any{
-	(MountMode)(0),             // 0: klitkavm.v1.MountMode
-	(*StartVMRequest)(nil),     // 1: klitkavm.v1.StartVMRequest
-	(*NetworkPolicy)(nil),      // 2: klitkavm.v1.NetworkPolicy
-	(*Mount)(nil),              // 3: klitkavm.v1.Mount
-	(*StartVMResponse)(nil),    // 4: klitkavm.v1.StartVMResponse
-	(*ExecRequest)(nil),        // 5: klitkavm.v1.ExecRequest
-	(*ExecResponse)(nil),       // 6: klitkavm.v1.ExecResponse
-	(*ExecStreamRequest)(nil),  // 7: klitkavm.v1.ExecStreamRequest
-	(*ExecStreamResponse)(nil), // 8: klitkavm.v1.ExecStreamResponse
-	(*ExecStart)(nil),          // 9: klitkavm.v1.ExecStart
-	(*ExecInput)(nil),          // 10: klitkavm.v1.ExecInput
-	(*PtyResize)(nil),          // 11: klitkavm.v1.PtyResize
-	(*ExecOutput)(nil),         // 12: klitkavm.v1.ExecOutput
-	(*ExecExit)(nil),           // 13: klitkavm.v1.ExecExit
-	(*StopVMRequest)(nil),      // 14: klitkavm.v1.StopVMRequest
-	(*StopVMResponse)(nil),     // 15: klitkavm.v1.StopVMResponse
+	(SecretFormat)(0),          // 0: klitkavm.v1.SecretFormat
+	(MountMode)(0),             // 1: klitkavm.v1.MountMode
+	(*StartVMRequest)(nil),     // 2: klitkavm.v1.StartVMRequest
+	(*NetworkPolicy)(nil),      // 3: klitkavm.v1.NetworkPolicy
+	(*Secret)(nil),             // 4: klitkavm.v1.Secret
+	(*Mount)(nil),              // 5: klitkavm.v1.Mount
+	(*StartVMResponse)(nil),    // 6: klitkavm.v1.StartVMResponse
+	(*ExecRequest)(nil),        // 7: klitkavm.v1.ExecRequest
+	(*ExecResponse)(nil),       // 8: klitkavm.v1.ExecResponse
+	(*ExecStreamRequest)(nil),  // 9: klitkavm.v1.ExecStreamRequest
+	(*ExecStreamResponse)(nil), // 10: klitkavm.v1.ExecStreamResponse
+	(*ExecStart)(nil),          // 11: klitkavm.v1.ExecStart
+	(*ExecInput)(nil),          // 12: klitkavm.v1.ExecInput
+	(*PtyResize)(nil),          // 13: klitkavm.v1.PtyResize
+	(*ExecOutput)(nil),         // 14: klitkavm.v1.ExecOutput
+	(*ExecExit)(nil),           // 15: klitkavm.v1.ExecExit
+	(*StopVMRequest)(nil),      // 16: klitkavm.v1.StopVMRequest
+	(*StopVMResponse)(nil),     // 17: klitkavm.v1.StopVMResponse
 }
 var file_klitkavm_v1_daemon_proto_depIdxs = []int32{
-	3,  // 0: klitkavm.v1.StartVMRequest.mounts:type_name -> klitkavm.v1.Mount
-	2,  // 1: klitkavm.v1.StartVMRequest.network:type_name -> klitkavm.v1.NetworkPolicy
-	0,  // 2: klitkavm.v1.Mount.mode:type_name -> klitkavm.v1.MountMode
-	9,  // 3: klitkavm.v1.ExecStreamRequest.start:type_name -> klitkavm.v1.ExecStart
-	10, // 4: klitkavm.v1.ExecStreamRequest.input:type_name -> klitkavm.v1.ExecInput
-	11, // 5: klitkavm.v1.ExecStreamRequest.resize:type_name -> klitkavm.v1.PtyResize
-	12, // 6: klitkavm.v1.ExecStreamResponse.output:type_name -> klitkavm.v1.ExecOutput
-	13, // 7: klitkavm.v1.ExecStreamResponse.exit:type_name -> klitkavm.v1.ExecExit
-	1,  // 8: klitkavm.v1.DaemonService.StartVM:input_type -> klitkavm.v1.StartVMRequest
-	5,  // 9: klitkavm.v1.DaemonService.Exec:input_type -> klitkavm.v1.ExecRequest
-	7,  // 10: klitkavm.v1.DaemonService.ExecStream:input_type -> klitkavm.v1.ExecStreamRequest
-	14, // 11: klitkavm.v1.DaemonService.StopVM:input_type -> klitkavm.v1.StopVMRequest
-	4,  // 12: klitkavm.v1.DaemonService.StartVM:output_type -> klitkavm.v1.StartVMResponse
-	6,  // 13: klitkavm.v1.DaemonService.Exec:output_type -> klitkavm.v1.ExecResponse
-	8,  // 14: klitkavm.v1.DaemonService.ExecStream:output_type -> klitkavm.v1.ExecStreamResponse
-	15, // 15: klitkavm.v1.DaemonService.StopVM:output_type -> klitkavm.v1.StopVMResponse
-	12, // [12:16] is the sub-list for method output_type
-	8,  // [8:12] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	5,  // 0: klitkavm.v1.StartVMRequest.mounts:type_name -> klitkavm.v1.Mount
+	3,  // 1: klitkavm.v1.StartVMRequest.network:type_name -> klitkavm.v1.NetworkPolicy
+	4,  // 2: klitkavm.v1.StartVMRequest.secrets:type_name -> klitkavm.v1.Secret
+	0,  // 3: klitkavm.v1.Secret.format:type_name -> klitkavm.v1.SecretFormat
+	1,  // 4: klitkavm.v1.Mount.mode:type_name -> klitkavm.v1.MountMode
+	11, // 5: klitkavm.v1.ExecStreamRequest.start:type_name -> klitkavm.v1.ExecStart
+	12, // 6: klitkavm.v1.ExecStreamRequest.input:type_name -> klitkavm.v1.ExecInput
+	13, // 7: klitkavm.v1.ExecStreamRequest.resize:type_name -> klitkavm.v1.PtyResize
+	14, // 8: klitkavm.v1.ExecStreamResponse.output:type_name -> klitkavm.v1.ExecOutput
+	15, // 9: klitkavm.v1.ExecStreamResponse.exit:type_name -> klitkavm.v1.ExecExit
+	2,  // 10: klitkavm.v1.DaemonService.StartVM:input_type -> klitkavm.v1.StartVMRequest
+	7,  // 11: klitkavm.v1.DaemonService.Exec:input_type -> klitkavm.v1.ExecRequest
+	9,  // 12: klitkavm.v1.DaemonService.ExecStream:input_type -> klitkavm.v1.ExecStreamRequest
+	16, // 13: klitkavm.v1.DaemonService.StopVM:input_type -> klitkavm.v1.StopVMRequest
+	6,  // 14: klitkavm.v1.DaemonService.StartVM:output_type -> klitkavm.v1.StartVMResponse
+	8,  // 15: klitkavm.v1.DaemonService.Exec:output_type -> klitkavm.v1.ExecResponse
+	10, // 16: klitkavm.v1.DaemonService.ExecStream:output_type -> klitkavm.v1.ExecStreamResponse
+	17, // 17: klitkavm.v1.DaemonService.StopVM:output_type -> klitkavm.v1.StopVMResponse
+	14, // [14:18] is the sub-list for method output_type
+	10, // [10:14] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_klitkavm_v1_daemon_proto_init() }
@@ -1064,12 +1212,12 @@ func file_klitkavm_v1_daemon_proto_init() {
 	if File_klitkavm_v1_daemon_proto != nil {
 		return
 	}
-	file_klitkavm_v1_daemon_proto_msgTypes[6].OneofWrappers = []any{
+	file_klitkavm_v1_daemon_proto_msgTypes[7].OneofWrappers = []any{
 		(*ExecStreamRequest_Start)(nil),
 		(*ExecStreamRequest_Input)(nil),
 		(*ExecStreamRequest_Resize)(nil),
 	}
-	file_klitkavm_v1_daemon_proto_msgTypes[7].OneofWrappers = []any{
+	file_klitkavm_v1_daemon_proto_msgTypes[8].OneofWrappers = []any{
 		(*ExecStreamResponse_Output)(nil),
 		(*ExecStreamResponse_Exit)(nil),
 	}
@@ -1078,8 +1226,8 @@ func file_klitkavm_v1_daemon_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_klitkavm_v1_daemon_proto_rawDesc), len(file_klitkavm_v1_daemon_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   15,
+			NumEnums:      2,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

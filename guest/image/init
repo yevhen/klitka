@@ -71,6 +71,12 @@ else
   log "[init] /sys/class/virtio-ports missing"
 fi
 
+if modprobe virtio > /dev/null 2>&1; then
+  log "[init] loaded virtio"
+fi
+if modprobe virtio_ring > /dev/null 2>&1; then
+  log "[init] loaded virtio_ring"
+fi
 if modprobe virtio_console > /dev/null 2>&1; then
   log "[init] loaded virtio_console"
 fi
@@ -84,6 +90,12 @@ else
   log "[init] /dev/hwrng missing"
 fi
 
+if modprobe virtio_pci > /dev/null 2>&1; then
+  log "[init] loaded virtio_pci"
+fi
+if modprobe virtio_mmio > /dev/null 2>&1; then
+  log "[init] loaded virtio_mmio"
+fi
 if modprobe virtio_net > /dev/null 2>&1; then
   log "[init] loaded virtio_net"
 fi
@@ -150,6 +162,15 @@ if [ -n "${mount_specs}" ]; then
   for spec in ${mount_specs}; do
     mount_virtiofs "${spec}"
   done
+fi
+
+if [ -f /run/klitkavm/mitm-ca.crt ]; then
+  log "[init] installing mitm ca"
+  install -d /usr/local/share/ca-certificates || true
+  cp /run/klitkavm/mitm-ca.crt /usr/local/share/ca-certificates/klitkavm-mitm-ca.crt || true
+  if [ -f /etc/ssl/certs/ca-certificates.crt ]; then
+    cat /run/klitkavm/mitm-ca.crt >> /etc/ssl/certs/ca-certificates.crt || true
+  fi
 fi
 
 log "[init] starting sandboxd"

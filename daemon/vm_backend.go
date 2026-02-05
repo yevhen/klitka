@@ -49,7 +49,7 @@ type vmMount struct {
 	process    *exec.Cmd
 }
 
-func newVMBackend(id string, req *klitkavmv1.StartVMRequest, env []string) (*vmBackend, error) {
+func newVMBackend(id string, req *klitkavmv1.StartVMRequest, env []string, network *networkManager) (*vmBackend, error) {
 	assets, err := resolveGuestAssets()
 	if err != nil {
 		return nil, err
@@ -72,7 +72,20 @@ func newVMBackend(id string, req *klitkavmv1.StartVMRequest, env []string) (*vmB
 		return nil, err
 	}
 
-	mounts, mountArgs, appendArgs, err := prepareVmMounts(req.GetMounts(), tempDir)
+	mountInputs := req.GetMounts()
+	if network != nil && network.caCertPath != "" {
+		mitmMount, err := createMitmMount(tempDir, mountInputs, network.caCertPath)
+		if err != nil {
+			_ = listener.Close()
+			_ = os.RemoveAll(tempDir)
+			return nil, err
+		}
+		if mitmMount != nil {
+			mountInputs = append(mountInputs, mitmMount)
+		}
+	}
+
+	mounts, mountArgs, appendArgs, err := prepareVmMounts(mountInputs, tempDir)
 	if err != nil {
 		_ = listener.Close()
 		_ = os.RemoveAll(tempDir)
@@ -380,7 +393,7 @@ func buildQemuArgs(assets guestAssets, socketPath string, appendArg string, moun
 		"-nodefaults",
 		"-no-reboot",
 		"-m",
-		"512M",
+		"1024M",
 		"-smp",
 		"2",
 		"-kernel",
@@ -411,7 +424,7 @@ func buildQemuArgs(assets guestAssets, socketPath string, appendArg string, moun
 		"-netdev",
 		"user,id=net0",
 		"-device",
-		"virtio-net-pci,netdev=net0",
+		netDeviceArg(),
 		"-chardev",
 		fmt.Sprintf("socket,id=virtiocon0,path=%s,server=off", socketPath),
 		"-device",
@@ -506,6 +519,35 @@ func mountModeString(mode klitkavmv1.MountMode) string {
 	return "rw"
 }
 
+func createMitmMount(tempDir string, mounts []*klitkavmv1.Mount, caPath string) (*klitkavmv1.Mount, error) {
+	if caPath == "" {
+		return nil, nil
+	}
+	for _, mount := range mounts {
+		if filepath.Clean(mount.GetGuestPath()) == "/run/klitkavm" {
+			return nil, fmt.Errorf("guest path /run/klitkavm reserved for system CA mount")
+		}
+	}
+
+	mountDir := filepath.Join(tempDir, "mitm-ca")
+	if err := os.MkdirAll(mountDir, 0o755); err != nil {
+		return nil, err
+	}
+	info, err := os.Stat(caPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := copyFile(caPath, filepath.Join(mountDir, "mitm-ca.crt"), info.Mode()); err != nil {
+		return nil, err
+	}
+
+	return &klitkavmv1.Mount{
+		HostPath:  mountDir,
+		GuestPath: "/run/klitkavm",
+		Mode:      klitkavmv1.MountMode_MOUNT_MODE_RO,
+	}, nil
+}
+
 func selectMachineType() string {
 	if runtime.GOOS == "linux" && runtime.GOARCH == "amd64" {
 		return "microvm"
@@ -532,6 +574,10 @@ func selectCPU() string {
 		return "host"
 	}
 	return "max"
+}
+
+func netDeviceArg() string {
+	return "virtio-net-pci,netdev=net0"
 }
 
 func acceptWithTimeout(listener net.Listener, timeout time.Duration) (net.Conn, error) {

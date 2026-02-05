@@ -2,8 +2,6 @@ package tests
 
 import (
 	"context"
-	"fmt"
-	"net"
 	"net/http"
 	"strings"
 	"testing"
@@ -28,38 +26,22 @@ func TestE2ENetworkAllowlist(t *testing.T) {
 		_ = server.HTTP.Close()
 	}()
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("failed to start http server: %v", err)
-	}
-	allowedPort := listener.Addr().(*net.TCPAddr).Port
-	localServer := &http.Server{
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			_, _ = w.Write([]byte("ok"))
-		}),
-	}
-	go func() {
-		_ = localServer.Serve(listener)
-	}()
-	defer func() {
-		_ = localServer.Close()
-	}()
-
 	addr := server.Listeners[0].Addr().String()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	allowedURL := fmt.Sprintf("http://localhost:%d", allowedPort)
-	allowArgs := []string{"--allow-host", "localhost", "--block-private=false", "--", "curl", "-fsS", allowedURL}
+	allowedHost := "example.com"
+	allowedURL := "https://example.com"
+	allowArgs := []string{"--allow-host", allowedHost, "--block-private=false", "--", "curl", "-fsS", allowedURL}
 	output, err := runCLIExec(ctx, addr, allowArgs)
 	if err != nil {
 		t.Fatalf("allowed host failed: %v (output: %s)", err, output)
 	}
-	if !strings.Contains(string(output), "ok") {
+	if !strings.Contains(string(output), "Example Domain") {
 		t.Fatalf("unexpected response: %s", output)
 	}
 
-	blockedArgs := []string{"--allow-host", "localhost", "--block-private=false", "--", "curl", "-fsS", "http://example.com"}
+	blockedArgs := []string{"--allow-host", allowedHost, "--block-private=false", "--", "curl", "-fsS", "https://example.org"}
 	output, err = runCLIExec(ctx, addr, blockedArgs)
 	if err == nil {
 		t.Fatalf("expected blocked host to fail (output: %s)", output)

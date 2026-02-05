@@ -45,7 +45,7 @@ func newVM(id string, req *klitkavmv1.StartVMRequest) (*VM, error) {
 
 	mode := backendModeFromEnv()
 	if mode == backendVM || mode == backendAuto {
-		backend, err := newVMBackend(id, req, env)
+		backend, err := newVMBackend(id, req, env, network)
 		if err == nil {
 			return &VM{ID: id, Backend: backend, Network: network}, nil
 		}

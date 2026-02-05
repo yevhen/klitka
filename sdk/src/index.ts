@@ -6,4 +6,5 @@ export type {
   MountConfig,
   FileSystemConfig,
   NetworkConfig,
+  SecretConfig,
 } from "./client";

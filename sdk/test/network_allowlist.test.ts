@@ -1,8 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import http from "node:http";
-import type { AddressInfo } from "node:net";
 
 import { Sandbox } from "../src/index.ts";
 import { buildDaemonEnv, repoRoot } from "./helpers.ts";
@@ -57,36 +55,26 @@ test("sdk network allowlist", async () => {
     env: daemonEnv,
   });
 
-  const server = http.createServer((_, res) => {
-    res.writeHead(200, { "content-type": "text/plain" });
-    res.end("ok");
-  });
-
-  await new Promise<void>((resolve) => {
-    server.listen(0, "127.0.0.1", () => resolve());
-  });
-
   try {
     const port = await waitForDaemon(daemon);
-    const address = server.address() as AddressInfo;
-    const allowedUrl = `http://localhost:${address.port}`;
+    const allowedHost = "example.com";
+    const allowedUrl = "https://example.com";
 
     const sandbox = await Sandbox.start({
       baseUrl: `http://127.0.0.1:${port}`,
-      network: { allowHosts: ["localhost"], blockPrivateRanges: false },
+      network: { allowHosts: [allowedHost], blockPrivateRanges: false },
     });
 
     const allowed = await sandbox.exec(["curl", "-fsS", allowedUrl]);
     const allowedOutput = new TextDecoder().decode(allowed.stdout);
     assert.equal(allowed.exitCode, 0);
-    assert.ok(allowedOutput.includes("ok"));
+    assert.ok(allowedOutput.includes("Example Domain"));
 
-    const blocked = await sandbox.exec(["curl", "-fsS", "http://example.com"]);
+    const blocked = await sandbox.exec(["curl", "-fsS", "https://example.org"]);
     assert.notEqual(blocked.exitCode, 0);
 
     await sandbox.close();
   } finally {
-    server.close();
     await shutdownDaemon(daemon);
   }
 });

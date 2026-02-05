@@ -392,9 +392,9 @@ Definition of Done (applies to every slice):
 
 ### Slice 6 — TLS MITM + secret injection
 **Goal:** Secure credential injection without guest exposure.
-- [ ] CA generation and guest trust install.
-- [ ] Per‑host cert minting.
-- [ ] Secret injection for allowed hosts only.
+- [x] CA generation and guest trust install.
+- [x] Per‑host cert minting.
+- [x] Secret injection for allowed hosts only.
 - ✅ Automated test: `e2e_secret_injection` verifies injected header at allowed host and placeholder‑only env inside guest.
 
 ### Slice 7 — WSL2 bootstrap

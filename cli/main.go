@@ -50,9 +50,9 @@ func main() {
 
 func printUsage() {
 	fmt.Println("Usage:")
-	fmt.Println("  klitkavm exec [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--socket path | --tcp host:port] -- <command>")
-	fmt.Println("  klitkavm shell [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--socket path | --tcp host:port]")
-	fmt.Println("  klitkavm start [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--socket path | --tcp host:port]")
+	fmt.Println("  klitkavm exec [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--secret NAME@host[,host...][:header][:format][=VALUE]] [--socket path | --tcp host:port] -- <command>")
+	fmt.Println("  klitkavm shell [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--secret NAME@host[,host...][:header][:format][=VALUE]] [--socket path | --tcp host:port]")
+	fmt.Println("  klitkavm start [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--secret NAME@host[,host...][:header][:format][=VALUE]] [--socket path | --tcp host:port]")
 	fmt.Println("  klitkavm stop --id <vm-id> [--socket path | --tcp host:port]")
 }
 
@@ -60,11 +60,13 @@ func execCommand(args []string) {
 	fs := flag.NewFlagSet("exec", flag.ExitOnError)
 	mountArgs := mountFlag{}
 	allowHosts := stringSliceFlag{}
+	secretArgs := stringSliceFlag{}
 	blockPrivate := fs.Bool("block-private", true, "block private IP ranges when using network allowlist")
 	socket := fs.String("socket", socketDefault(), "unix socket path")
 	tcp := fs.String("tcp", tcpDefault(), "tcp address host:port")
 	fs.Var(&mountArgs, "mount", "mount in format host:guest[:ro|rw]")
 	fs.Var(&allowHosts, "allow-host", "allow outbound HTTP(S) to host (repeatable)")
+	fs.Var(&secretArgs, "secret", "secret in format NAME@host[,host...][:header][:format][=VALUE] (VALUE defaults to $NAME)")
 	fs.Parse(args)
 
 	cmdArgs := fs.Args()
@@ -80,10 +82,16 @@ func execCommand(args []string) {
 		log.Fatalf("invalid mount flag: %v", err)
 	}
 
+	secrets, err := parseSecretFlags(secretArgs)
+	if err != nil {
+		log.Fatalf("invalid secret flag: %v", err)
+	}
+
 	networkPolicy := buildNetworkPolicy(allowHosts, *blockPrivate)
 	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{
 		Mounts:  mounts,
 		Network: networkPolicy,
+		Secrets: secrets,
 	}))
 	if err != nil {
 		log.Fatalf("start vm failed: %v", err)
@@ -136,11 +144,13 @@ func shellCommand(args []string) {
 	fs := flag.NewFlagSet("shell", flag.ExitOnError)
 	mountArgs := mountFlag{}
 	allowHosts := stringSliceFlag{}
+	secretArgs := stringSliceFlag{}
 	blockPrivate := fs.Bool("block-private", true, "block private IP ranges when using network allowlist")
 	socket := fs.String("socket", socketDefault(), "unix socket path")
 	tcp := fs.String("tcp", tcpDefault(), "tcp address host:port")
 	fs.Var(&mountArgs, "mount", "mount in format host:guest[:ro|rw]")
 	fs.Var(&allowHosts, "allow-host", "allow outbound HTTP(S) to host (repeatable)")
+	fs.Var(&secretArgs, "secret", "secret in format NAME@host[,host...][:header][:format][=VALUE] (VALUE defaults to $NAME)")
 	fs.Parse(args)
 
 	client, _ := newClient(*socket, *tcp)
@@ -151,10 +161,16 @@ func shellCommand(args []string) {
 		log.Fatalf("invalid mount flag: %v", err)
 	}
 
+	secrets, err := parseSecretFlags(secretArgs)
+	if err != nil {
+		log.Fatalf("invalid secret flag: %v", err)
+	}
+
 	networkPolicy := buildNetworkPolicy(allowHosts, *blockPrivate)
 	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{
 		Mounts:  mounts,
 		Network: networkPolicy,
+		Secrets: secrets,
 	}))
 	if err != nil {
 		log.Fatalf("start vm failed: %v", err)
@@ -302,11 +318,13 @@ func startCommand(args []string) {
 	fs := flag.NewFlagSet("start", flag.ExitOnError)
 	mountArgs := mountFlag{}
 	allowHosts := stringSliceFlag{}
+	secretArgs := stringSliceFlag{}
 	blockPrivate := fs.Bool("block-private", true, "block private IP ranges when using network allowlist")
 	socket := fs.String("socket", socketDefault(), "unix socket path")
 	tcp := fs.String("tcp", tcpDefault(), "tcp address host:port")
 	fs.Var(&mountArgs, "mount", "mount in format host:guest[:ro|rw]")
 	fs.Var(&allowHosts, "allow-host", "allow outbound HTTP(S) to host (repeatable)")
+	fs.Var(&secretArgs, "secret", "secret in format NAME@host[,host...][:header][:format][=VALUE] (VALUE defaults to $NAME)")
 	fs.Parse(args)
 
 	client, _ := newClient(*socket, *tcp)
@@ -317,10 +335,16 @@ func startCommand(args []string) {
 		log.Fatalf("invalid mount flag: %v", err)
 	}
 
+	secrets, err := parseSecretFlags(secretArgs)
+	if err != nil {
+		log.Fatalf("invalid secret flag: %v", err)
+	}
+
 	networkPolicy := buildNetworkPolicy(allowHosts, *blockPrivate)
 	resp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{
 		Mounts:  mounts,
 		Network: networkPolicy,
+		Secrets: secrets,
 	}))
 	if err != nil {
 		log.Fatalf("start vm failed: %v", err)
@@ -404,6 +428,113 @@ func parseMountFlags(flags mountFlag) ([]*klitkavmv1.Mount, error) {
 	}
 
 	return mounts, nil
+}
+
+func parseSecretFlags(flags stringSliceFlag) ([]*klitkavmv1.Secret, error) {
+	if len(flags) == 0 {
+		return nil, nil
+	}
+
+	secrets := make([]*klitkavmv1.Secret, 0, len(flags))
+	for _, item := range flags {
+		secret, err := parseSecretFlag(item)
+		if err != nil {
+			return nil, err
+		}
+		secrets = append(secrets, secret)
+	}
+	return secrets, nil
+}
+
+func parseSecretFlag(item string) (*klitkavmv1.Secret, error) {
+	item = strings.TrimSpace(item)
+	if item == "" {
+		return nil, fmt.Errorf("invalid secret format")
+	}
+
+	value := ""
+	left := item
+	if idx := strings.Index(item, "="); idx >= 0 {
+		left = item[:idx]
+		value = item[idx+1:]
+	}
+
+	parts := strings.Split(left, ":")
+	if len(parts) > 3 {
+		return nil, fmt.Errorf("invalid secret format: %q", item)
+	}
+
+	nameHosts := strings.TrimSpace(parts[0])
+	header := ""
+	format := ""
+	if len(parts) > 1 {
+		header = strings.TrimSpace(parts[1])
+	}
+	if len(parts) > 2 {
+		format = strings.TrimSpace(parts[2])
+	}
+
+	at := strings.Index(nameHosts, "@")
+	if at < 0 {
+		return nil, fmt.Errorf("invalid secret format: %q", item)
+	}
+	name := strings.TrimSpace(nameHosts[:at])
+	hostsPart := strings.TrimSpace(nameHosts[at+1:])
+	if name == "" || hostsPart == "" {
+		return nil, fmt.Errorf("invalid secret format: %q", item)
+	}
+
+	hostsRaw := strings.Split(hostsPart, ",")
+	hosts := make([]string, 0, len(hostsRaw))
+	for _, host := range hostsRaw {
+		host = strings.TrimSpace(host)
+		if host == "" {
+			continue
+		}
+		hosts = append(hosts, host)
+	}
+	if len(hosts) == 0 {
+		return nil, fmt.Errorf("invalid secret format: %q", item)
+	}
+
+	if value == "" {
+		value = os.Getenv(name)
+	}
+	if value == "" {
+		return nil, fmt.Errorf("missing secret value for %s", name)
+	}
+
+	formatEnum, err := parseSecretFormat(format)
+	if err != nil {
+		return nil, err
+	}
+
+	secret := &klitkavmv1.Secret{
+		Name:  name,
+		Hosts: hosts,
+		Value: value,
+	}
+	if header != "" {
+		secret.Header = header
+	}
+	if formatEnum != klitkavmv1.SecretFormat_SECRET_FORMAT_UNSPECIFIED {
+		secret.Format = formatEnum
+	}
+
+	return secret, nil
+}
+
+func parseSecretFormat(raw string) (klitkavmv1.SecretFormat, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "":
+		return klitkavmv1.SecretFormat_SECRET_FORMAT_UNSPECIFIED, nil
+	case "bearer":
+		return klitkavmv1.SecretFormat_SECRET_FORMAT_BEARER, nil
+	case "raw":
+		return klitkavmv1.SecretFormat_SECRET_FORMAT_RAW, nil
+	default:
+		return klitkavmv1.SecretFormat_SECRET_FORMAT_UNSPECIFIED, fmt.Errorf("invalid secret format: %q", raw)
+	}
 }
 
 func buildNetworkPolicy(allowHosts stringSliceFlag, blockPrivate bool) *klitkavmv1.NetworkPolicy {

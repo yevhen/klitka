@@ -7,6 +7,32 @@ import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialM
 import { Message, proto3 } from "@bufbuild/protobuf";
 
 /**
+ * @generated from enum klitkavm.v1.SecretFormat
+ */
+export enum SecretFormat {
+  /**
+   * @generated from enum value: SECRET_FORMAT_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: SECRET_FORMAT_BEARER = 1;
+   */
+  BEARER = 1,
+
+  /**
+   * @generated from enum value: SECRET_FORMAT_RAW = 2;
+   */
+  RAW = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(SecretFormat)
+proto3.util.setEnumType(SecretFormat, "klitkavm.v1.SecretFormat", [
+  { no: 0, name: "SECRET_FORMAT_UNSPECIFIED" },
+  { no: 1, name: "SECRET_FORMAT_BEARER" },
+  { no: 2, name: "SECRET_FORMAT_RAW" },
+]);
+
+/**
  * @generated from enum klitkavm.v1.MountMode
  */
 export enum MountMode {
@@ -46,6 +72,11 @@ export class StartVMRequest extends Message<StartVMRequest> {
    */
   network?: NetworkPolicy;
 
+  /**
+   * @generated from field: repeated klitkavm.v1.Secret secrets = 3;
+   */
+  secrets: Secret[] = [];
+
   constructor(data?: PartialMessage<StartVMRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -56,6 +87,7 @@ export class StartVMRequest extends Message<StartVMRequest> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "mounts", kind: "message", T: Mount, repeated: true },
     { no: 2, name: "network", kind: "message", T: NetworkPolicy },
+    { no: 3, name: "secrets", kind: "message", T: Secret, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): StartVMRequest {
@@ -121,6 +153,67 @@ export class NetworkPolicy extends Message<NetworkPolicy> {
 
   static equals(a: NetworkPolicy | PlainMessage<NetworkPolicy> | undefined, b: NetworkPolicy | PlainMessage<NetworkPolicy> | undefined): boolean {
     return proto3.util.equals(NetworkPolicy, a, b);
+  }
+}
+
+/**
+ * @generated from message klitkavm.v1.Secret
+ */
+export class Secret extends Message<Secret> {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name = "";
+
+  /**
+   * @generated from field: repeated string hosts = 2;
+   */
+  hosts: string[] = [];
+
+  /**
+   * @generated from field: string value = 3;
+   */
+  value = "";
+
+  /**
+   * @generated from field: string header = 4;
+   */
+  header = "";
+
+  /**
+   * @generated from field: klitkavm.v1.SecretFormat format = 5;
+   */
+  format = SecretFormat.UNSPECIFIED;
+
+  constructor(data?: PartialMessage<Secret>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "klitkavm.v1.Secret";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "hosts", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 3, name: "value", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "header", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "format", kind: "enum", T: proto3.getEnumType(SecretFormat) },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Secret {
+    return new Secret().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Secret {
+    return new Secret().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Secret {
+    return new Secret().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Secret | PlainMessage<Secret> | undefined, b: Secret | PlainMessage<Secret> | undefined): boolean {
+    return proto3.util.equals(Secret, a, b);
   }
 }
 
