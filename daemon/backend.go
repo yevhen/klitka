@@ -20,6 +20,7 @@ type ExecBackend interface {
 type VM struct {
 	ID      string
 	Backend ExecBackend
+	Network *networkManager
 }
 
 type backendMode string
@@ -33,25 +34,43 @@ const (
 var ErrVMUnavailable = errors.New("vm backend unavailable")
 
 func newVM(id string, req *klitkavmv1.StartVMRequest) (*VM, error) {
+	network, err := newNetworkManager(req)
+	if err != nil {
+		return nil, err
+	}
+	env := []string{}
+	if network != nil {
+		env = network.env
+	}
+
 	mode := backendModeFromEnv()
 	if mode == backendVM || mode == backendAuto {
-		backend, err := newVMBackend(id, req)
+		backend, err := newVMBackend(id, req, env)
 		if err == nil {
-			return &VM{ID: id, Backend: backend}, nil
+			return &VM{ID: id, Backend: backend, Network: network}, nil
 		}
 		if mode == backendVM {
+			if network != nil {
+				_ = network.Close()
+			}
 			return nil, err
 		}
 		if !errors.Is(err, ErrVMUnavailable) {
+			if network != nil {
+				_ = network.Close()
+			}
 			return nil, err
 		}
 	}
 
-	backend, err := newHostBackend(id, req)
+	backend, err := newHostBackend(id, req, env)
 	if err != nil {
+		if network != nil {
+			_ = network.Close()
+		}
 		return nil, err
 	}
-	return &VM{ID: id, Backend: backend}, nil
+	return &VM{ID: id, Backend: backend, Network: network}, nil
 }
 
 func backendModeFromEnv() backendMode {

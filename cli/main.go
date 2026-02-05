@@ -50,18 +50,21 @@ func main() {
 
 func printUsage() {
 	fmt.Println("Usage:")
-	fmt.Println("  klitkavm exec [--mount host:guest[:ro|rw]] [--socket path | --tcp host:port] -- <command>")
-	fmt.Println("  klitkavm shell [--mount host:guest[:ro|rw]] [--socket path | --tcp host:port]")
-	fmt.Println("  klitkavm start [--mount host:guest[:ro|rw]] [--socket path | --tcp host:port]")
+	fmt.Println("  klitkavm exec [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--socket path | --tcp host:port] -- <command>")
+	fmt.Println("  klitkavm shell [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--socket path | --tcp host:port]")
+	fmt.Println("  klitkavm start [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--socket path | --tcp host:port]")
 	fmt.Println("  klitkavm stop --id <vm-id> [--socket path | --tcp host:port]")
 }
 
 func execCommand(args []string) {
 	fs := flag.NewFlagSet("exec", flag.ExitOnError)
 	mountArgs := mountFlag{}
+	allowHosts := stringSliceFlag{}
+	blockPrivate := fs.Bool("block-private", true, "block private IP ranges when using network allowlist")
 	socket := fs.String("socket", socketDefault(), "unix socket path")
 	tcp := fs.String("tcp", tcpDefault(), "tcp address host:port")
 	fs.Var(&mountArgs, "mount", "mount in format host:guest[:ro|rw]")
+	fs.Var(&allowHosts, "allow-host", "allow outbound HTTP(S) to host (repeatable)")
 	fs.Parse(args)
 
 	cmdArgs := fs.Args()
@@ -77,7 +80,11 @@ func execCommand(args []string) {
 		log.Fatalf("invalid mount flag: %v", err)
 	}
 
-	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{Mounts: mounts}))
+	networkPolicy := buildNetworkPolicy(allowHosts, *blockPrivate)
+	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{
+		Mounts:  mounts,
+		Network: networkPolicy,
+	}))
 	if err != nil {
 		log.Fatalf("start vm failed: %v", err)
 	}
@@ -128,9 +135,12 @@ func execCommand(args []string) {
 func shellCommand(args []string) {
 	fs := flag.NewFlagSet("shell", flag.ExitOnError)
 	mountArgs := mountFlag{}
+	allowHosts := stringSliceFlag{}
+	blockPrivate := fs.Bool("block-private", true, "block private IP ranges when using network allowlist")
 	socket := fs.String("socket", socketDefault(), "unix socket path")
 	tcp := fs.String("tcp", tcpDefault(), "tcp address host:port")
 	fs.Var(&mountArgs, "mount", "mount in format host:guest[:ro|rw]")
+	fs.Var(&allowHosts, "allow-host", "allow outbound HTTP(S) to host (repeatable)")
 	fs.Parse(args)
 
 	client, _ := newClient(*socket, *tcp)
@@ -141,7 +151,11 @@ func shellCommand(args []string) {
 		log.Fatalf("invalid mount flag: %v", err)
 	}
 
-	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{Mounts: mounts}))
+	networkPolicy := buildNetworkPolicy(allowHosts, *blockPrivate)
+	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{
+		Mounts:  mounts,
+		Network: networkPolicy,
+	}))
 	if err != nil {
 		log.Fatalf("start vm failed: %v", err)
 	}
@@ -287,9 +301,12 @@ func watchResize(fd int, send func(*klitkavmv1.ExecStreamRequest) error) {
 func startCommand(args []string) {
 	fs := flag.NewFlagSet("start", flag.ExitOnError)
 	mountArgs := mountFlag{}
+	allowHosts := stringSliceFlag{}
+	blockPrivate := fs.Bool("block-private", true, "block private IP ranges when using network allowlist")
 	socket := fs.String("socket", socketDefault(), "unix socket path")
 	tcp := fs.String("tcp", tcpDefault(), "tcp address host:port")
 	fs.Var(&mountArgs, "mount", "mount in format host:guest[:ro|rw]")
+	fs.Var(&allowHosts, "allow-host", "allow outbound HTTP(S) to host (repeatable)")
 	fs.Parse(args)
 
 	client, _ := newClient(*socket, *tcp)
@@ -300,7 +317,11 @@ func startCommand(args []string) {
 		log.Fatalf("invalid mount flag: %v", err)
 	}
 
-	resp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{Mounts: mounts}))
+	networkPolicy := buildNetworkPolicy(allowHosts, *blockPrivate)
+	resp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{
+		Mounts:  mounts,
+		Network: networkPolicy,
+	}))
 	if err != nil {
 		log.Fatalf("start vm failed: %v", err)
 	}
@@ -328,12 +349,23 @@ func stopCommand(args []string) {
 
 type mountFlag []string
 
+type stringSliceFlag []string
+
 func (m *mountFlag) String() string {
 	return strings.Join(*m, ",")
 }
 
 func (m *mountFlag) Set(value string) error {
 	*m = append(*m, value)
+	return nil
+}
+
+func (s *stringSliceFlag) String() string {
+	return strings.Join(*s, ",")
+}
+
+func (s *stringSliceFlag) Set(value string) error {
+	*s = append(*s, value)
 	return nil
 }
 
@@ -372,6 +404,29 @@ func parseMountFlags(flags mountFlag) ([]*klitkavmv1.Mount, error) {
 	}
 
 	return mounts, nil
+}
+
+func buildNetworkPolicy(allowHosts stringSliceFlag, blockPrivate bool) *klitkavmv1.NetworkPolicy {
+	if len(allowHosts) == 0 {
+		return nil
+	}
+
+	hosts := make([]string, 0, len(allowHosts))
+	for _, host := range allowHosts {
+		host = strings.TrimSpace(host)
+		if host == "" {
+			continue
+		}
+		hosts = append(hosts, host)
+	}
+	if len(hosts) == 0 {
+		return nil
+	}
+
+	return &klitkavmv1.NetworkPolicy{
+		AllowHosts:         hosts,
+		BlockPrivateRanges: blockPrivate,
+	}
 }
 
 func newClient(socketPath, tcpAddr string) (klitkavmv1connect.DaemonServiceClient, string) {

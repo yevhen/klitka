@@ -385,9 +385,9 @@ Definition of Done (applies to every slice):
 
 ### Slice 5 — Network allowlist + DNS guard
 **Goal:** Controlled HTTP/TLS egress.
-- [ ] Host proxy (Envoy or mitmproxy) wired into VM network.
-- [ ] DNS guard + rebind protection.
-- [ ] Allow/deny host policy in daemon.
+- [x] Host proxy wired into VM network.
+- [x] DNS guard + rebind protection (proxy-level IP checks).
+- [x] Allow/deny host policy in daemon.
 - ✅ Automated test: `e2e_net_allowlist` hits an allowed host (local test server) and a blocked host; asserts allow/deny behavior.
 
 ### Slice 6 — TLS MITM + secret injection

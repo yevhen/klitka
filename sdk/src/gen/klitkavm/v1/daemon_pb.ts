@@ -41,6 +41,11 @@ export class StartVMRequest extends Message<StartVMRequest> {
    */
   mounts: Mount[] = [];
 
+  /**
+   * @generated from field: klitkavm.v1.NetworkPolicy network = 2;
+   */
+  network?: NetworkPolicy;
+
   constructor(data?: PartialMessage<StartVMRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -50,6 +55,7 @@ export class StartVMRequest extends Message<StartVMRequest> {
   static readonly typeName = "klitkavm.v1.StartVMRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "mounts", kind: "message", T: Mount, repeated: true },
+    { no: 2, name: "network", kind: "message", T: NetworkPolicy },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): StartVMRequest {
@@ -66,6 +72,55 @@ export class StartVMRequest extends Message<StartVMRequest> {
 
   static equals(a: StartVMRequest | PlainMessage<StartVMRequest> | undefined, b: StartVMRequest | PlainMessage<StartVMRequest> | undefined): boolean {
     return proto3.util.equals(StartVMRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message klitkavm.v1.NetworkPolicy
+ */
+export class NetworkPolicy extends Message<NetworkPolicy> {
+  /**
+   * @generated from field: repeated string allow_hosts = 1;
+   */
+  allowHosts: string[] = [];
+
+  /**
+   * @generated from field: repeated string deny_hosts = 2;
+   */
+  denyHosts: string[] = [];
+
+  /**
+   * @generated from field: bool block_private_ranges = 3;
+   */
+  blockPrivateRanges = false;
+
+  constructor(data?: PartialMessage<NetworkPolicy>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "klitkavm.v1.NetworkPolicy";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "allow_hosts", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 2, name: "deny_hosts", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 3, name: "block_private_ranges", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): NetworkPolicy {
+    return new NetworkPolicy().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): NetworkPolicy {
+    return new NetworkPolicy().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): NetworkPolicy {
+    return new NetworkPolicy().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: NetworkPolicy | PlainMessage<NetworkPolicy> | undefined, b: NetworkPolicy | PlainMessage<NetworkPolicy> | undefined): boolean {
+    return proto3.util.equals(NetworkPolicy, a, b);
   }
 }
 

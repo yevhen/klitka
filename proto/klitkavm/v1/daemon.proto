@@ -15,6 +15,13 @@ service DaemonService {
 
 message StartVMRequest {
   repeated Mount mounts = 1;
+  NetworkPolicy network = 2;
+}
+
+message NetworkPolicy {
+  repeated string allow_hosts = 1;
+  repeated string deny_hosts = 2;
+  bool block_private_ranges = 3;
 }
 
 enum MountMode {

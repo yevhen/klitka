@@ -29,6 +29,7 @@ type vmBackend struct {
 	tempDir    string
 	socketPath string
 	mounts     []vmMount
+	env        []string
 	waitCh     chan error
 	closeOnce  sync.Once
 }
@@ -48,7 +49,7 @@ type vmMount struct {
 	process    *exec.Cmd
 }
 
-func newVMBackend(id string, req *klitkavmv1.StartVMRequest) (*vmBackend, error) {
+func newVMBackend(id string, req *klitkavmv1.StartVMRequest, env []string) (*vmBackend, error) {
 	assets, err := resolveGuestAssets()
 	if err != nil {
 		return nil, err
@@ -91,6 +92,7 @@ func newVMBackend(id string, req *klitkavmv1.StartVMRequest) (*vmBackend, error)
 		tempDir:    tempDir,
 		socketPath: socketPath,
 		mounts:     mounts,
+		env:        env,
 		waitCh:     make(chan error, 1),
 	}
 
@@ -117,7 +119,7 @@ func newVMBackend(id string, req *klitkavmv1.StartVMRequest) (*vmBackend, error)
 }
 
 func (backend *vmBackend) Exec(ctx context.Context, command string, args []string) (*klitkavmv1.ExecResponse, error) {
-	req, err := backend.client.startExec(command, args, false, false)
+	req, err := backend.client.startExec(command, args, false, false, backend.env)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -142,7 +144,7 @@ func (backend *vmBackend) ExecStream(
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	req, err := backend.client.startExec(start.GetCommand(), start.GetArgs(), true, start.GetPty())
+	req, err := backend.client.startExec(start.GetCommand(), start.GetArgs(), true, start.GetPty(), backend.env)
 	if err != nil {
 		_ = stream.Send(execOutput("stderr", []byte(err.Error())))
 		_ = stream.Send(execExit(127))
@@ -406,6 +408,10 @@ func buildQemuArgs(assets guestAssets, socketPath string, appendArg string, moun
 	}
 
 	args = append(args,
+		"-netdev",
+		"user,id=net0",
+		"-device",
+		"virtio-net-pci,netdev=net0",
 		"-chardev",
 		fmt.Sprintf("socket,id=virtiocon0,path=%s,server=off", socketPath),
 		"-device",

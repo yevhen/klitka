@@ -112,6 +112,11 @@ func (s *Service) StopVM(
 	if err := vm.Backend.Close(); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+	if vm.Network != nil {
+		if err := vm.Network.Close(); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+	}
 	return connect.NewResponse(&klitkavmv1.StopVMResponse{}), nil
 }
 

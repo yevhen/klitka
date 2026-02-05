@@ -9,6 +9,7 @@ import {
   ExecStreamRequest,
   Mount,
   MountMode,
+  NetworkPolicy,
   PtyResize,
   StartVMRequest,
   StopVMRequest,
@@ -24,9 +25,16 @@ export type FileSystemConfig = {
   mounts?: MountConfig[];
 };
 
+export type NetworkConfig = {
+  allowHosts?: string[];
+  denyHosts?: string[];
+  blockPrivateRanges?: boolean;
+};
+
 export type SandboxOptions = {
   baseUrl?: string;
   fs?: FileSystemConfig;
+  network?: NetworkConfig;
 };
 
 export type ExecResult = {
@@ -108,6 +116,7 @@ export class Sandbox {
     const response = await client.startVM(
       new StartVMRequest({
         mounts: buildMounts(options.fs?.mounts),
+        network: buildNetworkPolicy(options.network),
       })
     );
     sandbox.vmId = response.vmId;
@@ -319,6 +328,27 @@ function buildMounts(mounts?: MountConfig[]): Mount[] {
       mode: mountModeFromConfig(mount.mode),
     })
   );
+}
+
+function buildNetworkPolicy(network?: NetworkConfig): NetworkPolicy | undefined {
+  if (!network) {
+    return undefined;
+  }
+
+  const allowHosts = (network.allowHosts ?? []).filter(Boolean);
+  const denyHosts = (network.denyHosts ?? []).filter(Boolean);
+  const hasPolicy = allowHosts.length > 0 || denyHosts.length > 0 || network.blockPrivateRanges !== undefined;
+
+  if (!hasPolicy) {
+    return undefined;
+  }
+
+  const blockPrivateRanges = network.blockPrivateRanges ?? true;
+  return new NetworkPolicy({
+    allowHosts,
+    denyHosts,
+    blockPrivateRanges,
+  });
 }
 
 function mountModeFromConfig(mode?: MountConfig["mode"]): MountMode {

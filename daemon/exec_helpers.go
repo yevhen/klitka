@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -136,4 +137,37 @@ func exitCodeFromError(err error, stderr *bytes.Buffer) int32 {
 		}
 		return 1
 	}
+}
+
+func mergeEnv(base []string, overrides []string) []string {
+	if len(overrides) == 0 {
+		return base
+	}
+	out := make([]string, 0, len(base)+len(overrides))
+	index := map[string]int{}
+
+	add := func(entry string) {
+		key := entry
+		if idx := strings.Index(entry, "="); idx >= 0 {
+			key = entry[:idx]
+		}
+		if pos, ok := index[key]; ok {
+			out[pos] = entry
+			return
+		}
+		index[key] = len(out)
+		out = append(out, entry)
+	}
+
+	for _, entry := range base {
+		add(entry)
+	}
+	for _, entry := range overrides {
+		if entry == "" {
+			continue
+		}
+		add(entry)
+	}
+
+	return out
 }

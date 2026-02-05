@@ -22,6 +22,7 @@ type HostBackend struct {
 	ID     string
 	Root   string
 	Mounts []Mount
+	Env    []string
 }
 
 type Mount struct {
@@ -30,7 +31,7 @@ type Mount struct {
 	Mode      klitkavmv1.MountMode
 }
 
-func newHostBackend(id string, req *klitkavmv1.StartVMRequest) (*HostBackend, error) {
+func newHostBackend(id string, req *klitkavmv1.StartVMRequest, env []string) (*HostBackend, error) {
 	root, err := os.MkdirTemp("", fmt.Sprintf("klitkavm-%s-", id))
 	if err != nil {
 		return nil, err
@@ -44,7 +45,7 @@ func newHostBackend(id string, req *klitkavmv1.StartVMRequest) (*HostBackend, er
 		_ = os.RemoveAll(root)
 		return nil, err
 	}
-	return &HostBackend{ID: id, Root: root, Mounts: mounts}, nil
+	return &HostBackend{ID: id, Root: root, Mounts: mounts, Env: env}, nil
 }
 
 func (backend *HostBackend) Close() error {
@@ -60,6 +61,7 @@ func (backend *HostBackend) Close() error {
 func (backend *HostBackend) Exec(ctx context.Context, command string, args []string) (*klitkavmv1.ExecResponse, error) {
 	command, args = backend.RewriteCommand(command, args)
 	cmd := commandFromArgs(ctx, command, args)
+	cmd.Env = mergeEnv(os.Environ(), backend.Env)
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -88,6 +90,7 @@ func (backend *HostBackend) ExecStream(
 
 	command, args := backend.RewriteCommand(start.GetCommand(), start.GetArgs())
 	cmd := commandFromArgs(ctx, command, args)
+	cmd.Env = mergeEnv(os.Environ(), backend.Env)
 
 	stdin, stdout, stderr, ptyFile, err := startCommand(cmd, start.GetPty())
 	if err != nil {

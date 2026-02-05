@@ -83,7 +83,7 @@ func (c *virtioClient) Close() error {
 	return c.conn.Close()
 }
 
-func (c *virtioClient) startExec(cmd string, args []string, stdin bool, pty bool) (*virtioRequest, error) {
+func (c *virtioClient) startExec(cmd string, args []string, stdin bool, pty bool, env []string) (*virtioRequest, error) {
 	c.mu.Lock()
 	c.nextID++
 	id := c.nextID
@@ -101,6 +101,9 @@ func (c *virtioClient) startExec(cmd string, args []string, stdin bool, pty bool
 	}
 	if len(args) > 0 {
 		payload["argv"] = args
+	}
+	if len(env) > 0 {
+		payload["env"] = env
 	}
 	if stdin {
 		payload["stdin"] = true
