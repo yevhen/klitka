@@ -3,3 +3,7 @@ sdk/dist
 *.sock
 *.log
 .DS_Store
+guest/image/out
+guest/image/.cache
+guest/zig-out
+guest/.zig-cache
