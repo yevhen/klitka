@@ -234,6 +234,42 @@ YAML/JSON accepted. Matches `SandboxOptions` schema.
 - Optionally installs CA certificate into guest trust store.
 - Provides `/etc/resolv.conf` pointing to host DNS guard.
 
+### 5.1 Guest Image Contract (for custom images)
+Custom images are supported **only if they satisfy the guest contract**. The daemon assumes these components exist:
+
+**Required components**
+- `sandboxd` binary available in PATH (default: `/usr/bin/sandboxd`).
+- `init` script that:
+  - mounts `/proc`, `/sys`, `/dev`, `/run`.
+  - starts `sandboxd` on boot.
+  - configures DNS (`/etc/resolv.conf`).
+- virtio‑serial device present at `/dev/virtio-ports/virtio-port` (or auto‑scan).
+
+**Expected filesystem layout**
+- Mount point for host FS (default `/data`, configurable by daemon).
+- Writable tmpfs/overlay for guest root (when memfs root is enabled).
+
+**Optional but recommended**
+- Standard utilities (`sh`, `bash`, `curl`, `ca-certificates`).
+- Trust store location for MITM CA injection.
+
+### 5.2 Image Build/Injection (recommended)
+Provide an **official image builder** that takes a base rootfs and injects:
+- `sandboxd`
+- `init` script
+- required directories/mount points
+- optional CA certificate
+
+Default build uses the repo‑shipped guest image (based on the gondolin `guest/` build) and Alpine minirootfs, but the builder can accept a custom base rootfs tarball (e.g. Ubuntu/Debian):
+```bash
+BASE_ROOTFS=./rootfs.tar guest/image/build.sh
+```
+
+Example CLI (illustrative):
+```bash
+klitkavm image build --base ./rootfs.tar --inject --tag my-image:1
+```
+
 ---
 
 ## 6. Policy Model
@@ -325,16 +361,27 @@ Definition of Done (applies to every slice):
 
 ### Slice 3 — Read‑only host mounts
 **Goal:** Mount a host path read‑only into guest.
-- [ ] Integrate `virtiofsd` for mount exposure.
-- [ ] FS config parsing in daemon.
-- [ ] CLI/SDK `fs.mounts` supported (ro).
+- [x] Integrate `virtiofsd` for mount exposure.
+- [x] FS config parsing in daemon.
+- [x] CLI/SDK `fs.mounts` supported (ro).
 - ✅ Automated test: `e2e_ro_mount` reads a host file and verifies write fails with EROFS.
 
 ### Slice 4 — RW mounts + memfs root
 **Goal:** Realistic FS policy controls.
-- [ ] memfs root mount.
-- [ ] RW host mounts with enforcement.
+- [x] memfs root mount.
+- [x] RW host mounts with enforcement.
 - ✅ Automated tests: `e2e_rw_mount` (CLI RW mount) and `sdk rw mount + memfs root` (SDK memfs verification).
+
+### Slice 4.5 — Real microVM execution path
+**Goal:** Move exec/shell from host‑exec to real VM via `sandboxd`.
+- [x] Introduce `ExecBackend` with `HostExecBackend` + `VmExecBackend`; default to VM backend.
+- [x] Disable path‑rewrite when using VM backend (retain for host backend only).
+- [x] Replace copy‑based mounts with virtiofsd mount wiring for VM backend (RO/RW enforced by FS).
+- [x] Implement memfs root inside guest (tmpfs or initramfs overlay).
+- [x] Bundle guest image + `sandboxd` in repo or build cache.
+- [x] Daemon launches QEMU and connects virtio‑serial RPC.
+- [x] Implement exec + execStream over virtio‑serial frames.
+- ✅ Automated tests: re‑run `e2e_exec_smoke`, `e2e_shell_pty`, `e2e_ro_mount`, `e2e_rw_mount` against the VM backend.
 
 ### Slice 5 — Network allowlist + DNS guard
 **Goal:** Controlled HTTP/TLS egress.
@@ -386,3 +433,7 @@ klitkavm/
 - Read‑only mounts enforced.
 - Secrets injected only for allowed hosts.
 - CLI supports `exec` and `shell` with config file.
+
+## 13. Development Environment
+- Nix dev shell is the primary way to provision system dependencies (QEMU, virtiofsd, Go, Node, Zig).
+- CI can use `nix develop --command` to run Go + SDK tests in a reproducible environment.
