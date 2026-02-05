@@ -1,0 +1,124 @@
+# AGENTS.md
+
+Guidance for AI agents working on this repo.
+
+## Project overview
+`klitkavm` is a local sandbox runtime (Go daemon + Go CLI + TS SDK) that runs untrusted code in a microVM. The daemon manages VM lifecycle, virtio‑serial exec, and virtiofs mounts. The SDK/CLI speak the Connect/Protobuf API over a local socket or TCP.
+
+## Repo layout
+```
+cli/            Go CLI (klitkavm)
+cmd/            daemon entrypoint (klitkavm-daemon)
+daemon/         VM lifecycle + backend logic
+guest/          guest image build + sandboxd (Zig)
+proto/          Protobuf contract
+sdk/            TypeScript SDK
+scripts/        bootstrap tooling
+spec.md         architecture + slice plan
+```
+
+## Development environment
+Preferred: **Nix dev shell** (guarantees QEMU/virtiofsd/Go/Node/Zig).
+
+```bash
+# One-command bootstrap (installs Nix if missing)
+./scripts/bootstrap.sh
+
+# Or enter dev shell
+nix develop
+# legacy
+nix-shell
+```
+
+The dev shell includes: QEMU, virtiofsd (Linux), Go 1.22, Node 20, Zig, protoc tools.
+
+## Build guest image
+```bash
+# Alpine default
+./guest/image/build.sh
+
+# Custom base rootfs tarball
+BASE_ROOTFS=./rootfs.tar ./guest/image/build.sh
+```
+Artifacts land in `guest/image/out/`:
+- `vmlinuz`
+- `initramfs.cpio.gz`
+
+## Run daemon + CLI
+```bash
+# daemon (TCP)
+go run ./cmd/klitkavm-daemon --tcp 127.0.0.1:0
+
+# exec via CLI
+KLITKAVM_TCP=127.0.0.1:PORT go run ./cli exec -- uname -a
+
+# shell via CLI
+KLITKAVM_TCP=127.0.0.1:PORT go run ./cli shell
+```
+
+## SDK usage
+```ts
+import { Sandbox } from "@klitkavm/sdk";
+
+const sandbox = await Sandbox.start({ baseUrl: "http://127.0.0.1:PORT" });
+const res = await sandbox.exec(["uname", "-a"]);
+await sandbox.close();
+```
+
+## Key environment variables
+Connection:
+- `KLITKAVM_SOCKET`: default UNIX socket path for CLI.
+- `KLITKAVM_TCP`: default TCP address for CLI/SDK.
+
+VM backend:
+- `KLITKAVM_BACKEND`: `vm` | `host` | `auto` (default auto).
+- `KLITKAVM_GUEST_KERNEL`: path to `vmlinuz`.
+- `KLITKAVM_GUEST_INITRD`: path to `initramfs.cpio.gz`.
+- `KLITKAVM_GUEST_APPEND`: extra kernel append args.
+- `KLITKAVM_QEMU`: override QEMU binary path.
+- `KLITKAVM_VIRTIOFSD`: override virtiofsd path.
+- `KLITKAVM_TMPDIR`: base temp dir for VM runtime data.
+- `KLITKAVM_DEBUG_QEMU`: non-empty to log QEMU stdout/stderr.
+
+Debug:
+- `KLITKAVM_DEBUG_CONN=1`: log initial bytes for new connections.
+- `KLITKAVM_DEBUG_HTTP=1`: log HTTP request lines.
+
+## Tests
+```bash
+# Go tests
+make test-go
+# SDK tests
+make test-sdk
+# Full suite (build guest + tests)
+make test
+# Run inside nix develop
+make test-nix
+```
+Notes:
+- VM tests require QEMU + guest assets (built via `guest/image/build.sh`).
+- Mount tests require `virtiofsd` (skipped if not available).
+
+## Code style
+- Go: run `gofmt` on modified `.go` files.
+- TypeScript: no formatter enforced; keep existing style.
+- Avoid adding new dependencies unless required by a slice.
+
+## Commit conventions
+Use **imperative, capitalized** messages (no prefixes/scopes). Examples:
+- `Add guest image and sandboxd`
+- `Add VM exec backend`
+- `Harden streaming shell behavior and cleanup tests`
+- `Update spec for completed slices`
+
+Keep commits focused and align with the slice plan in `spec.md`.
+
+## Generated artifacts (do not commit)
+- `guest/image/out/`
+- `guest/image/.cache/`
+- `guest/zig-out/`
+- `guest/.zig-cache/`
+- `sdk/node_modules/`, `sdk/dist/`
+
+## Maintaining the spec
+When a slice or major milestone is completed, update `spec.md` checkboxes accordingly.
