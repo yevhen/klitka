@@ -1,17 +1,24 @@
 package daemon
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+
+	"connectrpc.com/connect"
+	"github.com/creack/pty"
 
 	klitkavmv1 "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1"
 )
 
-type VM struct {
+type HostBackend struct {
 	ID     string
 	Root   string
 	Mounts []Mount
@@ -23,7 +30,7 @@ type Mount struct {
 	Mode      klitkavmv1.MountMode
 }
 
-func newVM(id string, req *klitkavmv1.StartVMRequest) (*VM, error) {
+func newHostBackend(id string, req *klitkavmv1.StartVMRequest) (*HostBackend, error) {
 	root, err := os.MkdirTemp("", fmt.Sprintf("klitkavm-%s-", id))
 	if err != nil {
 		return nil, err
@@ -37,37 +44,152 @@ func newVM(id string, req *klitkavmv1.StartVMRequest) (*VM, error) {
 		_ = os.RemoveAll(root)
 		return nil, err
 	}
-	return &VM{ID: id, Root: root, Mounts: mounts}, nil
+	return &HostBackend{ID: id, Root: root, Mounts: mounts}, nil
 }
 
-func (vm *VM) Cleanup() {
-	if vm == nil {
-		return
+func (backend *HostBackend) Close() error {
+	if backend == nil {
+		return nil
 	}
-	if vm.Root != "" {
-		_ = os.RemoveAll(vm.Root)
+	if backend.Root != "" {
+		_ = os.RemoveAll(backend.Root)
 	}
+	return nil
 }
 
-func (vm *VM) RewriteCommand(command string, args []string) (string, []string) {
-	command = vm.rewritePath(command, false)
+func (backend *HostBackend) Exec(ctx context.Context, command string, args []string) (*klitkavmv1.ExecResponse, error) {
+	command, args = backend.RewriteCommand(command, args)
+	cmd := commandFromArgs(ctx, command, args)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	exitCode := int32(0)
+	if err := cmd.Run(); err != nil {
+		exitCode = exitCodeFromError(err, &stderr)
+	}
+
+	return &klitkavmv1.ExecResponse{
+		ExitCode: exitCode,
+		Stdout:   stdout.Bytes(),
+		Stderr:   stderr.Bytes(),
+	}, nil
+}
+
+func (backend *HostBackend) ExecStream(
+	ctx context.Context,
+	start *klitkavmv1.ExecStart,
+	stream *connect.BidiStream[klitkavmv1.ExecStreamRequest, klitkavmv1.ExecStreamResponse],
+) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	command, args := backend.RewriteCommand(start.GetCommand(), start.GetArgs())
+	cmd := commandFromArgs(ctx, command, args)
+
+	stdin, stdout, stderr, ptyFile, err := startCommand(cmd, start.GetPty())
+	if err != nil {
+		_ = stream.Send(execOutput("stderr", []byte(err.Error())))
+		_ = stream.Send(execExit(127))
+		return nil
+	}
+
+	sendMu := sync.Mutex{}
+	send := func(resp *klitkavmv1.ExecStreamResponse) error {
+		sendMu.Lock()
+		defer sendMu.Unlock()
+		err := stream.Send(resp)
+		if err != nil {
+			cancel()
+		}
+		return err
+	}
+
+	outputErr := make(chan error, 1)
+	wg := &sync.WaitGroup{}
+
+	if stdout != nil {
+		wg.Add(1)
+		go readOutput(ctx, wg, stdout, "stdout", send, outputErr)
+	}
+	if stderr != nil {
+		wg.Add(1)
+		go readOutput(ctx, wg, stderr, "stderr", send, outputErr)
+	}
+
+	go func() {
+		for {
+			msg, recvErr := stream.Receive()
+			if recvErr != nil {
+				if errors.Is(recvErr, io.EOF) {
+					sendEof(stdin, ptyFile)
+					return
+				}
+				cancel()
+				return
+			}
+			if input := msg.GetInput(); input != nil {
+				if len(input.GetData()) > 0 {
+					_, _ = stdin.Write(input.GetData())
+				}
+				if input.GetEof() {
+					sendEof(stdin, ptyFile)
+					return
+				}
+			}
+			if resize := msg.GetResize(); resize != nil && ptyFile != nil {
+				_ = pty.Setsize(ptyFile, &pty.Winsize{Rows: uint16(resize.GetRows()), Cols: uint16(resize.GetCols())})
+			}
+		}
+	}()
+
+	waitErr := cmd.Wait()
+	if ptyFile != nil {
+		_ = ptyFile.Close()
+	}
+	wg.Wait()
+
+	exitCode := int32(0)
+	if waitErr != nil {
+		exitCode = exitCodeFromError(waitErr, nil)
+	}
+
+	if err := send(execExit(exitCode)); err != nil {
+		return err
+	}
+
+	select {
+	case err := <-outputErr:
+		if err != nil {
+			return err
+		}
+	default:
+	}
+
+	return nil
+}
+
+func (backend *HostBackend) RewriteCommand(command string, args []string) (string, []string) {
+	command = backend.rewritePath(command, false)
 	if len(args) == 0 {
 		return command, args
 	}
 
 	out := make([]string, len(args))
 	for i, arg := range args {
-		out[i] = vm.rewritePath(arg, true)
+		out[i] = backend.rewritePath(arg, true)
 	}
 	return command, out
 }
 
-func (vm *VM) rewritePath(input string, allowRoot bool) string {
+func (backend *HostBackend) rewritePath(input string, allowRoot bool) string {
 	if !strings.HasPrefix(input, string(os.PathSeparator)) {
 		return input
 	}
 
-	for _, mount := range vm.Mounts {
+	for _, mount := range backend.Mounts {
 		guest := mount.GuestPath
 		if input == guest {
 			return mount.HostPath
@@ -78,25 +200,25 @@ func (vm *VM) rewritePath(input string, allowRoot bool) string {
 		}
 	}
 
-	if !allowRoot || vm.Root == "" {
+	if !allowRoot || backend.Root == "" {
 		return input
 	}
 
-	return vm.rootPath(input)
+	return backend.rootPath(input)
 }
 
 func prepareRoot(root string) error {
 	return os.MkdirAll(filepath.Join(root, "tmp"), 0o755)
 }
 
-func (vm *VM) rootPath(input string) string {
+func (backend *HostBackend) rootPath(input string) string {
 	if input == string(os.PathSeparator) {
-		return vm.Root
+		return backend.Root
 	}
 	trimmed := strings.TrimPrefix(input, string(os.PathSeparator))
-	target := filepath.Join(vm.Root, trimmed)
+	target := filepath.Join(backend.Root, trimmed)
 	parent := filepath.Dir(target)
-	if parent != "" && parent != vm.Root {
+	if parent != "" && parent != backend.Root {
 		_ = os.MkdirAll(parent, 0o755)
 	}
 	return target
@@ -198,33 +320,28 @@ func copyFile(src, dst string, mode os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = out.Close()
-	}()
+	defer out.Close()
 
 	if _, err := io.Copy(out, in); err != nil {
 		return err
 	}
-
-	return os.Chmod(dst, mode&os.ModePerm)
+	if err := out.Chmod(mode & os.ModePerm); err != nil {
+		return err
+	}
+	return nil
 }
 
-func makeReadOnly(root string) error {
-	return filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
+func makeReadOnly(path string) error {
+	return filepath.WalkDir(path, func(entryPath string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
 		info, err := entry.Info()
 		if err != nil {
 			return err
 		}
-		if entry.IsDir() {
-			return os.Chmod(path, 0o555)
-		}
 		mode := info.Mode() & os.ModePerm
-		if mode == 0 {
-			mode = 0o444
-		}
-		return os.Chmod(path, 0o444)
+		mode &^= 0o222
+		return os.Chmod(entryPath, mode)
 	})
 }

@@ -1,18 +1,11 @@
 package daemon
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"io"
-	"os"
-	"os/exec"
 	"sync"
-	"syscall"
 
 	"connectrpc.com/connect"
-	"github.com/creack/pty"
 	"github.com/google/uuid"
 
 	klitkavmv1 "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1"
@@ -63,24 +56,11 @@ func (s *Service) Exec(
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("command is required"))
 	}
 
-	command, args := vm.RewriteCommand(command, req.Msg.GetArgs())
-	cmd := commandFromArgs(ctx, command, args)
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	exitCode := int32(0)
-	if err := cmd.Run(); err != nil {
-		exitCode = exitCodeFromError(err, &stderr)
+	resp, err := vm.Backend.Exec(ctx, command, req.Msg.GetArgs())
+	if err != nil {
+		return nil, err
 	}
 
-	resp := &klitkavmv1.ExecResponse{
-		ExitCode: exitCode,
-		Stdout:   stdout.Bytes(),
-		Stderr:   stderr.Bytes(),
-	}
 	return connect.NewResponse(resp), nil
 }
 
@@ -88,9 +68,6 @@ func (s *Service) ExecStream(
 	ctx context.Context,
 	stream *connect.BidiStream[klitkavmv1.ExecStreamRequest, klitkavmv1.ExecStreamResponse],
 ) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	first, err := stream.Receive()
 	if err != nil {
 		return err
@@ -111,89 +88,7 @@ func (s *Service) ExecStream(
 		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("command is required"))
 	}
 
-	command, args := vm.RewriteCommand(start.GetCommand(), start.GetArgs())
-	cmd := commandFromArgs(ctx, command, args)
-
-	stdin, stdout, stderr, ptyFile, err := startCommand(cmd, start.GetPty())
-	if err != nil {
-		_ = stream.Send(execOutput("stderr", []byte(err.Error())))
-		_ = stream.Send(execExit(127))
-		return nil
-	}
-
-	sendMu := sync.Mutex{}
-	send := func(resp *klitkavmv1.ExecStreamResponse) error {
-		sendMu.Lock()
-		defer sendMu.Unlock()
-		err := stream.Send(resp)
-		if err != nil {
-			cancel()
-		}
-		return err
-	}
-
-	outputErr := make(chan error, 1)
-	wg := &sync.WaitGroup{}
-
-	if stdout != nil {
-		wg.Add(1)
-		go readOutput(ctx, wg, stdout, "stdout", send, outputErr)
-	}
-	if stderr != nil {
-		wg.Add(1)
-		go readOutput(ctx, wg, stderr, "stderr", send, outputErr)
-	}
-
-	go func() {
-		for {
-			msg, recvErr := stream.Receive()
-			if recvErr != nil {
-				if errors.Is(recvErr, io.EOF) {
-					sendEof(stdin, ptyFile)
-					return
-				}
-				cancel()
-				return
-			}
-			if input := msg.GetInput(); input != nil {
-				if len(input.GetData()) > 0 {
-					_, _ = stdin.Write(input.GetData())
-				}
-				if input.GetEof() {
-					sendEof(stdin, ptyFile)
-					return
-				}
-			}
-			if resize := msg.GetResize(); resize != nil && ptyFile != nil {
-				_ = pty.Setsize(ptyFile, &pty.Winsize{Rows: uint16(resize.GetRows()), Cols: uint16(resize.GetCols())})
-			}
-		}
-	}()
-
-	waitErr := cmd.Wait()
-	if ptyFile != nil {
-		_ = ptyFile.Close()
-	}
-	wg.Wait()
-
-	exitCode := int32(0)
-	if waitErr != nil {
-		exitCode = exitCodeFromError(waitErr, nil)
-	}
-
-	if err := send(execExit(exitCode)); err != nil {
-		return err
-	}
-
-	select {
-	case err := <-outputErr:
-		if err != nil {
-			return err
-		}
-	default:
-	}
-
-	return nil
+	return vm.Backend.ExecStream(ctx, start, stream)
 }
 
 func (s *Service) StopVM(
@@ -214,7 +109,9 @@ func (s *Service) StopVM(
 	delete(s.vms, vmID)
 	s.mu.Unlock()
 
-	vm.Cleanup()
+	if err := vm.Backend.Close(); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
 	return connect.NewResponse(&klitkavmv1.StopVMResponse{}), nil
 }
 
@@ -223,127 +120,4 @@ func (s *Service) getVM(vmID string) (*VM, bool) {
 	defer s.mu.Unlock()
 	vm, ok := s.vms[vmID]
 	return vm, ok
-}
-
-func commandFromArgs(ctx context.Context, command string, args []string) *exec.Cmd {
-	return exec.CommandContext(ctx, command, args...)
-}
-
-func startCommand(cmd *exec.Cmd, usePty bool) (io.WriteCloser, io.Reader, io.Reader, *os.File, error) {
-	if usePty {
-		ptyFile, err := pty.Start(cmd)
-		if err != nil {
-			return nil, nil, nil, nil, err
-		}
-		return ptyFile, ptyFile, nil, ptyFile, nil
-	}
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	if err := cmd.Start(); err != nil {
-		return nil, nil, nil, nil, err
-	}
-	return stdin, stdout, stderr, nil, nil
-}
-
-func readOutput(
-	ctx context.Context,
-	wg *sync.WaitGroup,
-	reader io.Reader,
-	stream string,
-	send func(*klitkavmv1.ExecStreamResponse) error,
-	errCh chan<- error,
-) {
-	defer wg.Done()
-	buf := make([]byte, 32*1024)
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-		n, err := reader.Read(buf)
-		if n > 0 {
-			if sendErr := send(execOutput(stream, buf[:n])); sendErr != nil {
-				select {
-				case errCh <- sendErr:
-				default:
-				}
-				return
-			}
-		}
-		if err != nil {
-			if errors.Is(err, io.EOF) || errors.Is(err, os.ErrClosed) || errors.Is(err, syscall.EIO) {
-				return
-			}
-			select {
-			case errCh <- err:
-			default:
-			}
-			return
-		}
-	}
-}
-
-func sendEof(stdin io.WriteCloser, ptyFile *os.File) {
-	if ptyFile != nil {
-		_, _ = stdin.Write([]byte{4})
-		return
-	}
-	_ = stdin.Close()
-}
-
-func execOutput(stream string, data []byte) *klitkavmv1.ExecStreamResponse {
-	return &klitkavmv1.ExecStreamResponse{
-		Payload: &klitkavmv1.ExecStreamResponse_Output{
-			Output: &klitkavmv1.ExecOutput{
-				Stream: stream,
-				Data:   data,
-			},
-		},
-	}
-}
-
-func execExit(code int32) *klitkavmv1.ExecStreamResponse {
-	return &klitkavmv1.ExecStreamResponse{
-		Payload: &klitkavmv1.ExecStreamResponse_Exit{
-			Exit: &klitkavmv1.ExecExit{ExitCode: code},
-		},
-	}
-}
-
-func exitCodeFromError(err error, stderr *bytes.Buffer) int32 {
-	var exitErr *exec.ExitError
-	var execErr *exec.Error
-	var pathErr *os.PathError
-
-	switch {
-	case errors.As(err, &exitErr):
-		return int32(exitErr.ExitCode())
-	case errors.As(err, &execErr):
-		if stderr != nil && stderr.Len() == 0 {
-			_, _ = stderr.WriteString(execErr.Error())
-		}
-		return 127
-	case errors.As(err, &pathErr):
-		if stderr != nil && stderr.Len() == 0 {
-			_, _ = stderr.WriteString(pathErr.Error())
-		}
-		return 127
-	default:
-		if stderr != nil && stderr.Len() == 0 {
-			_, _ = stderr.WriteString(err.Error())
-		}
-		return 1
-	}
 }
