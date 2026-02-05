@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	klitkavmv1 "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1"
@@ -27,6 +28,10 @@ func newVM(id string, req *klitkavmv1.StartVMRequest) (*VM, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := prepareRoot(root); err != nil {
+		_ = os.RemoveAll(root)
+		return nil, err
+	}
 	mounts, err := buildMounts(root, req.GetMounts())
 	if err != nil {
 		_ = os.RemoveAll(root)
@@ -45,19 +50,19 @@ func (vm *VM) Cleanup() {
 }
 
 func (vm *VM) RewriteCommand(command string, args []string) (string, []string) {
-	command = vm.rewritePath(command)
+	command = vm.rewritePath(command, false)
 	if len(args) == 0 {
 		return command, args
 	}
 
 	out := make([]string, len(args))
 	for i, arg := range args {
-		out[i] = vm.rewritePath(arg)
+		out[i] = vm.rewritePath(arg, true)
 	}
 	return command, out
 }
 
-func (vm *VM) rewritePath(input string) string {
+func (vm *VM) rewritePath(input string, allowRoot bool) string {
 	if !strings.HasPrefix(input, string(os.PathSeparator)) {
 		return input
 	}
@@ -73,7 +78,28 @@ func (vm *VM) rewritePath(input string) string {
 		}
 	}
 
-	return input
+	if !allowRoot || vm.Root == "" {
+		return input
+	}
+
+	return vm.rootPath(input)
+}
+
+func prepareRoot(root string) error {
+	return os.MkdirAll(filepath.Join(root, "tmp"), 0o755)
+}
+
+func (vm *VM) rootPath(input string) string {
+	if input == string(os.PathSeparator) {
+		return vm.Root
+	}
+	trimmed := strings.TrimPrefix(input, string(os.PathSeparator))
+	target := filepath.Join(vm.Root, trimmed)
+	parent := filepath.Dir(target)
+	if parent != "" && parent != vm.Root {
+		_ = os.MkdirAll(parent, 0o755)
+	}
+	return target
 }
 
 func buildMounts(root string, mounts []*klitkavmv1.Mount) ([]Mount, error) {
@@ -120,6 +146,10 @@ func buildMounts(root string, mounts []*klitkavmv1.Mount) ([]Mount, error) {
 			Mode:      mode,
 		})
 	}
+
+	sort.SliceStable(out, func(i, j int) bool {
+		return len(out[i].GuestPath) > len(out[j].GuestPath)
+	})
 
 	return out, nil
 }

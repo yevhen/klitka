@@ -334,7 +334,7 @@ Definition of Done (applies to every slice):
 **Goal:** Realistic FS policy controls.
 - [ ] memfs root mount.
 - [ ] RW host mounts with enforcement.
-- ✅ Automated test: `e2e_rw_mount` writes to RW mount, fails on RO, and verifies memfs root is writable.
+- ✅ Automated tests: `e2e_rw_mount` (CLI RW mount) and `sdk rw mount + memfs root` (SDK memfs verification).
 
 ### Slice 5 — Network allowlist + DNS guard
 **Goal:** Controlled HTTP/TLS egress.
