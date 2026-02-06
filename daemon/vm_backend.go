@@ -17,7 +17,7 @@ import (
 
 	"connectrpc.com/connect"
 
-	klitkavmv1 "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1"
+	klitkav1 "github.com/klitka/klitka/proto/gen/go/klitka/v1"
 )
 
 type vmBackend struct {
@@ -45,11 +45,11 @@ type vmMount struct {
 	hostPath   string
 	guestPath  string
 	socketPath string
-	mode       klitkavmv1.MountMode
+	mode       klitkav1.MountMode
 	process    *exec.Cmd
 }
 
-func newVMBackend(id string, req *klitkavmv1.StartVMRequest, env []string, network *networkManager) (*vmBackend, error) {
+func newVMBackend(id string, req *klitkav1.StartVMRequest, env []string, network *networkManager) (*vmBackend, error) {
 	assets, err := resolveGuestAssets()
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func newVMBackend(id string, req *klitkavmv1.StartVMRequest, env []string, netwo
 		return nil, err
 	}
 
-	tempDir, err := createTempDir(fmt.Sprintf("klitkavm-vm-%s-", id))
+	tempDir, err := createTempDir(fmt.Sprintf("klitka-vm-%s-", id))
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func newVMBackend(id string, req *klitkavmv1.StartVMRequest, env []string, netwo
 	return backend, nil
 }
 
-func (backend *vmBackend) Exec(ctx context.Context, command string, args []string) (*klitkavmv1.ExecResponse, error) {
+func (backend *vmBackend) Exec(ctx context.Context, command string, args []string) (*klitkav1.ExecResponse, error) {
 	req, err := backend.client.startExec(command, args, false, false, backend.env)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -142,7 +142,7 @@ func (backend *vmBackend) Exec(ctx context.Context, command string, args []strin
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	return &klitkavmv1.ExecResponse{
+	return &klitkav1.ExecResponse{
 		ExitCode: exitCode,
 		Stdout:   stdout,
 		Stderr:   stderr,
@@ -151,8 +151,8 @@ func (backend *vmBackend) Exec(ctx context.Context, command string, args []strin
 
 func (backend *vmBackend) ExecStream(
 	ctx context.Context,
-	start *klitkavmv1.ExecStart,
-	stream *connect.BidiStream[klitkavmv1.ExecStreamRequest, klitkavmv1.ExecStreamResponse],
+	start *klitkav1.ExecStart,
+	stream *connect.BidiStream[klitkav1.ExecStreamRequest, klitkav1.ExecStreamResponse],
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -165,7 +165,7 @@ func (backend *vmBackend) ExecStream(
 	}
 
 	sendMu := sync.Mutex{}
-	send := func(resp *klitkavmv1.ExecStreamResponse) error {
+	send := func(resp *klitkav1.ExecStreamResponse) error {
 		sendMu.Lock()
 		defer sendMu.Unlock()
 		err := stream.Send(resp)
@@ -274,9 +274,9 @@ func (backend *vmBackend) Close() error {
 }
 
 func resolveGuestAssets() (guestAssets, error) {
-	kernel := strings.TrimSpace(os.Getenv("KLITKAVM_GUEST_KERNEL"))
-	initrd := strings.TrimSpace(os.Getenv("KLITKAVM_GUEST_INITRD"))
-	append := strings.TrimSpace(os.Getenv("KLITKAVM_GUEST_APPEND"))
+	kernel := strings.TrimSpace(os.Getenv("KLITKA_GUEST_KERNEL"))
+	initrd := strings.TrimSpace(os.Getenv("KLITKA_GUEST_INITRD"))
+	append := strings.TrimSpace(os.Getenv("KLITKA_GUEST_APPEND"))
 
 	if kernel == "" || initrd == "" {
 		fallbackKernel, fallbackInitrd := defaultGuestPaths()
@@ -285,7 +285,7 @@ func resolveGuestAssets() (guestAssets, error) {
 	}
 
 	if kernel == "" || initrd == "" {
-		return guestAssets{}, vmUnavailable("set KLITKAVM_GUEST_KERNEL and KLITKAVM_GUEST_INITRD")
+		return guestAssets{}, vmUnavailable("set KLITKA_GUEST_KERNEL and KLITKA_GUEST_INITRD")
 	}
 	if _, err := os.Stat(kernel); err != nil {
 		return guestAssets{}, vmUnavailable(fmt.Sprintf("kernel not found: %s", kernel))
@@ -309,7 +309,11 @@ func defaultGuestPaths() (string, string) {
 	if exe, err := os.Executable(); err == nil {
 		exeDir := filepath.Dir(exe)
 		candidates = append(candidates, filepath.Join(exeDir, "..", "guest", "image", "out"))
+		candidates = append(candidates, filepath.Join(exeDir, "..", "share", "klitka", "guest"))
+		candidates = append(candidates, filepath.Join(exeDir, "share", "klitka", "guest"))
 	}
+
+	candidates = append(candidates, filepath.Join(string(filepath.Separator), "usr", "share", "klitka", "guest"))
 
 	for _, base := range candidates {
 		kernel := filepath.Join(base, "vmlinuz")
@@ -340,7 +344,7 @@ func firstExistingPath(primary, fallback string) string {
 }
 
 func resolveQemuPath() (string, error) {
-	if override := strings.TrimSpace(os.Getenv("KLITKAVM_QEMU")); override != "" {
+	if override := strings.TrimSpace(os.Getenv("KLITKA_QEMU")); override != "" {
 		if _, err := exec.LookPath(override); err != nil {
 			return "", vmUnavailable(fmt.Sprintf("qemu not found: %s", override))
 		}
@@ -358,7 +362,7 @@ func resolveQemuPath() (string, error) {
 }
 
 func resolveVirtiofsdPath() (string, error) {
-	if override := strings.TrimSpace(os.Getenv("KLITKAVM_VIRTIOFSD")); override != "" {
+	if override := strings.TrimSpace(os.Getenv("KLITKA_VIRTIOFSD")); override != "" {
 		if _, err := exec.LookPath(override); err != nil {
 			return "", vmUnavailable(fmt.Sprintf("virtiofsd not found: %s", override))
 		}
@@ -437,7 +441,7 @@ func buildQemuArgs(assets guestAssets, socketPath string, appendArg string, moun
 	return args
 }
 
-func prepareVmMounts(mounts []*klitkavmv1.Mount, tempDir string) ([]vmMount, []string, []string, error) {
+func prepareVmMounts(mounts []*klitkav1.Mount, tempDir string) ([]vmMount, []string, []string, error) {
 	if len(mounts) == 0 {
 		return nil, nil, nil, nil
 	}
@@ -472,15 +476,15 @@ func prepareVmMounts(mounts []*klitkavmv1.Mount, tempDir string) ([]vmMount, []s
 		}
 
 		mode := mount.GetMode()
-		if mode == klitkavmv1.MountMode_MOUNT_MODE_UNSPECIFIED {
-			mode = klitkavmv1.MountMode_MOUNT_MODE_RO
+		if mode == klitkav1.MountMode_MOUNT_MODE_UNSPECIFIED {
+			mode = klitkav1.MountMode_MOUNT_MODE_RO
 		}
 
-		tag := fmt.Sprintf("klitkavm%d", idx)
+		tag := fmt.Sprintf("klitka%d", idx)
 		socketPath := filepath.Join(tempDir, fmt.Sprintf("virtiofs-%d.sock", idx))
 
 		args := []string{"--socket-path", socketPath, "--shared-dir", hostPath}
-		if mode == klitkavmv1.MountMode_MOUNT_MODE_RO {
+		if mode == klitkav1.MountMode_MOUNT_MODE_RO {
 			args = append(args, "--readonly")
 		}
 
@@ -506,26 +510,26 @@ func prepareVmMounts(mounts []*klitkavmv1.Mount, tempDir string) ([]vmMount, []s
 			"-device", fmt.Sprintf("vhost-user-fs-pci,chardev=fs%d,tag=%s", idx, tag),
 		)
 
-		appendArgs = append(appendArgs, fmt.Sprintf("klitkavm.mount=%s:%s:%s", tag, guestPath, mountModeString(mode)))
+		appendArgs = append(appendArgs, fmt.Sprintf("klitka.mount=%s:%s:%s", tag, guestPath, mountModeString(mode)))
 	}
 
 	return out, qemuArgs, appendArgs, nil
 }
 
-func mountModeString(mode klitkavmv1.MountMode) string {
-	if mode == klitkavmv1.MountMode_MOUNT_MODE_RO {
+func mountModeString(mode klitkav1.MountMode) string {
+	if mode == klitkav1.MountMode_MOUNT_MODE_RO {
 		return "ro"
 	}
 	return "rw"
 }
 
-func createMitmMount(tempDir string, mounts []*klitkavmv1.Mount, caPath string) (*klitkavmv1.Mount, error) {
+func createMitmMount(tempDir string, mounts []*klitkav1.Mount, caPath string) (*klitkav1.Mount, error) {
 	if caPath == "" {
 		return nil, nil
 	}
 	for _, mount := range mounts {
-		if filepath.Clean(mount.GetGuestPath()) == "/run/klitkavm" {
-			return nil, fmt.Errorf("guest path /run/klitkavm reserved for system CA mount")
+		if filepath.Clean(mount.GetGuestPath()) == "/run/klitka" {
+			return nil, fmt.Errorf("guest path /run/klitka reserved for system CA mount")
 		}
 	}
 
@@ -541,10 +545,10 @@ func createMitmMount(tempDir string, mounts []*klitkavmv1.Mount, caPath string) 
 		return nil, err
 	}
 
-	return &klitkavmv1.Mount{
+	return &klitkav1.Mount{
 		HostPath:  mountDir,
-		GuestPath: "/run/klitkavm",
-		Mode:      klitkavmv1.MountMode_MOUNT_MODE_RO,
+		GuestPath: "/run/klitka",
+		Mode:      klitkav1.MountMode_MOUNT_MODE_RO,
 	}, nil
 }
 
@@ -603,14 +607,14 @@ func acceptWithTimeout(listener net.Listener, timeout time.Duration) (net.Conn, 
 }
 
 func qemuOutputWriter() io.Writer {
-	if strings.TrimSpace(os.Getenv("KLITKAVM_DEBUG_QEMU")) != "" {
+	if strings.TrimSpace(os.Getenv("KLITKA_DEBUG_QEMU")) != "" {
 		return os.Stdout
 	}
 	return io.Discard
 }
 
 func createTempDir(prefix string) (string, error) {
-	base := strings.TrimSpace(os.Getenv("KLITKAVM_TMPDIR"))
+	base := strings.TrimSpace(os.Getenv("KLITKA_TMPDIR"))
 	if base == "" {
 		base = os.TempDir()
 	}

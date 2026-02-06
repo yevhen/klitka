@@ -15,7 +15,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/creack/pty"
 
-	klitkavmv1 "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1"
+	klitkav1 "github.com/klitka/klitka/proto/gen/go/klitka/v1"
 )
 
 type HostBackend struct {
@@ -28,11 +28,11 @@ type HostBackend struct {
 type Mount struct {
 	GuestPath string
 	HostPath  string
-	Mode      klitkavmv1.MountMode
+	Mode      klitkav1.MountMode
 }
 
-func newHostBackend(id string, req *klitkavmv1.StartVMRequest, env []string) (*HostBackend, error) {
-	root, err := os.MkdirTemp("", fmt.Sprintf("klitkavm-%s-", id))
+func newHostBackend(id string, req *klitkav1.StartVMRequest, env []string) (*HostBackend, error) {
+	root, err := os.MkdirTemp("", fmt.Sprintf("klitka-%s-", id))
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (backend *HostBackend) Close() error {
 	return nil
 }
 
-func (backend *HostBackend) Exec(ctx context.Context, command string, args []string) (*klitkavmv1.ExecResponse, error) {
+func (backend *HostBackend) Exec(ctx context.Context, command string, args []string) (*klitkav1.ExecResponse, error) {
 	command, args = backend.RewriteCommand(command, args)
 	cmd := commandFromArgs(ctx, command, args)
 	cmd.Env = mergeEnv(os.Environ(), backend.Env)
@@ -73,7 +73,7 @@ func (backend *HostBackend) Exec(ctx context.Context, command string, args []str
 		exitCode = exitCodeFromError(err, &stderr)
 	}
 
-	return &klitkavmv1.ExecResponse{
+	return &klitkav1.ExecResponse{
 		ExitCode: exitCode,
 		Stdout:   stdout.Bytes(),
 		Stderr:   stderr.Bytes(),
@@ -82,8 +82,8 @@ func (backend *HostBackend) Exec(ctx context.Context, command string, args []str
 
 func (backend *HostBackend) ExecStream(
 	ctx context.Context,
-	start *klitkavmv1.ExecStart,
-	stream *connect.BidiStream[klitkavmv1.ExecStreamRequest, klitkavmv1.ExecStreamResponse],
+	start *klitkav1.ExecStart,
+	stream *connect.BidiStream[klitkav1.ExecStreamRequest, klitkav1.ExecStreamResponse],
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -100,7 +100,7 @@ func (backend *HostBackend) ExecStream(
 	}
 
 	sendMu := sync.Mutex{}
-	send := func(resp *klitkavmv1.ExecStreamResponse) error {
+	send := func(resp *klitkav1.ExecStreamResponse) error {
 		sendMu.Lock()
 		defer sendMu.Unlock()
 		err := stream.Send(resp)
@@ -227,7 +227,7 @@ func (backend *HostBackend) rootPath(input string) string {
 	return target
 }
 
-func buildMounts(root string, mounts []*klitkavmv1.Mount) ([]Mount, error) {
+func buildMounts(root string, mounts []*klitkav1.Mount) ([]Mount, error) {
 	if len(mounts) == 0 {
 		return nil, nil
 	}
@@ -249,12 +249,12 @@ func buildMounts(root string, mounts []*klitkavmv1.Mount) ([]Mount, error) {
 		}
 
 		mode := mount.GetMode()
-		if mode == klitkavmv1.MountMode_MOUNT_MODE_UNSPECIFIED {
-			mode = klitkavmv1.MountMode_MOUNT_MODE_RO
+		if mode == klitkav1.MountMode_MOUNT_MODE_UNSPECIFIED {
+			mode = klitkav1.MountMode_MOUNT_MODE_RO
 		}
 
 		resolvedHostPath := hostPath
-		if mode == klitkavmv1.MountMode_MOUNT_MODE_RO {
+		if mode == klitkav1.MountMode_MOUNT_MODE_RO {
 			copyPath := filepath.Join(root, "mounts", strings.TrimPrefix(guestPath, string(os.PathSeparator)))
 			if err := copyTree(hostPath, copyPath); err != nil {
 				return nil, err

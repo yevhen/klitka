@@ -126,8 +126,8 @@ mount_specs=""
 if [ -r /proc/cmdline ]; then
   for arg in $(cat /proc/cmdline); do
     case "${arg}" in
-      klitkavm.mount=*)
-        mount_specs="${mount_specs} ${arg#klitkavm.mount=}"
+      klitka.mount=*)
+        mount_specs="${mount_specs} ${arg#klitka.mount=}"
         ;;
     esac
   done
@@ -164,12 +164,12 @@ if [ -n "${mount_specs}" ]; then
   done
 fi
 
-if [ -f /run/klitkavm/mitm-ca.crt ]; then
+if [ -f /run/klitka/mitm-ca.crt ]; then
   log "[init] installing mitm ca"
   install -d /usr/local/share/ca-certificates || true
-  cp /run/klitkavm/mitm-ca.crt /usr/local/share/ca-certificates/klitkavm-mitm-ca.crt || true
+  cp /run/klitka/mitm-ca.crt /usr/local/share/ca-certificates/klitka-mitm-ca.crt || true
   if [ -f /etc/ssl/certs/ca-certificates.crt ]; then
-    cat /run/klitkavm/mitm-ca.crt >> /etc/ssl/certs/ca-certificates.crt || true
+    cat /run/klitka/mitm-ca.crt >> /etc/ssl/certs/ca-certificates.crt || true
   fi
 fi
 

@@ -1,0 +1,91 @@
+project_name: klitka
+
+builds:
+  - id: cli
+    main: ./cli
+    binary: klitka
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+  - id: daemon
+    main: ./cmd/klitka-daemon
+    binary: klitka-daemon
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: unix
+    builds:
+      - cli
+      - daemon
+    goos:
+      - linux
+      - darwin
+    format: tar.gz
+    wrap_in_directory: true
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - src: guest/image/out/vmlinuz
+        dst: share/klitka/guest/vmlinuz
+      - src: guest/image/out/initramfs.cpio.gz
+        dst: share/klitka/guest/initramfs.cpio.gz
+
+  - id: windows
+    builds:
+      - cli
+    goos:
+      - windows
+    format: zip
+    wrap_in_directory: true
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+
+nfpms:
+  - id: klitka
+    package_name: klitka
+    builds:
+      - cli
+      - daemon
+    formats:
+      - deb
+      - rpm
+    section: utils
+    priority: optional
+    maintainer: KlitkaAI
+    description: Local sandbox runtime for running LLM workloads inside a microVM.
+    homepage: https://github.com/KlitkaAI/klitka
+    contents:
+      - src: guest/image/out/vmlinuz
+        dst: /usr/share/klitka/guest/vmlinuz
+      - src: guest/image/out/initramfs.cpio.gz
+        dst: /usr/share/klitka/guest/initramfs.cpio.gz
+
+brews:
+  - name: klitka
+    description: Local sandbox runtime for running LLM workloads inside a microVM.
+    homepage: https://github.com/KlitkaAI/klitka
+    repository:
+      owner: KlitkaAI
+      name: homebrew-tap
+    install: |
+      bin.install "klitka"
+      bin.install "klitka-daemon"
+      (share/"klitka/guest").install "share/klitka/guest/vmlinuz", "share/klitka/guest/initramfs.cpio.gz"

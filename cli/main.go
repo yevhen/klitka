@@ -21,9 +21,9 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/term"
 
-	"github.com/klitkavm/klitkavm/daemon"
-	klitkavmv1 "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1"
-	klitkavmv1connect "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1/klitkavmv1connect"
+	"github.com/klitka/klitka/daemon"
+	klitkav1 "github.com/klitka/klitka/proto/gen/go/klitka/v1"
+	klitkav1connect "github.com/klitka/klitka/proto/gen/go/klitka/v1/klitkav1connect"
 )
 
 func main() {
@@ -50,10 +50,10 @@ func main() {
 
 func printUsage() {
 	fmt.Println("Usage:")
-	fmt.Println("  klitkavm exec [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--secret NAME@host[,host...][:header][:format][=VALUE]] [--socket path | --tcp host:port] -- <command>")
-	fmt.Println("  klitkavm shell [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--secret NAME@host[,host...][:header][:format][=VALUE]] [--socket path | --tcp host:port]")
-	fmt.Println("  klitkavm start [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--secret NAME@host[,host...][:header][:format][=VALUE]] [--socket path | --tcp host:port]")
-	fmt.Println("  klitkavm stop --id <vm-id> [--socket path | --tcp host:port]")
+	fmt.Println("  klitka exec [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--secret NAME@host[,host...][:header][:format][=VALUE]] [--socket path | --tcp host:port] -- <command>")
+	fmt.Println("  klitka shell [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--secret NAME@host[,host...][:header][:format][=VALUE]] [--socket path | --tcp host:port]")
+	fmt.Println("  klitka start [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--secret NAME@host[,host...][:header][:format][=VALUE]] [--socket path | --tcp host:port]")
+	fmt.Println("  klitka stop --id <vm-id> [--socket path | --tcp host:port]")
 }
 
 func execCommand(args []string) {
@@ -97,7 +97,7 @@ func execCommand(args []string) {
 	}
 
 	networkPolicy := buildNetworkPolicy(allowHosts, *blockPrivate)
-	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{
+	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkav1.StartVMRequest{
 		Mounts:  mounts,
 		Network: networkPolicy,
 		Secrets: secrets,
@@ -117,13 +117,13 @@ func execCommand(args []string) {
 	}
 
 	stopVM := func() {
-		stopReq := connect.NewRequest(&klitkavmv1.StopVMRequest{VmId: vmID})
+		stopReq := connect.NewRequest(&klitkav1.StopVMRequest{VmId: vmID})
 		if _, stopErr := client.StopVM(ctx, stopReq); stopErr != nil {
 			log.Printf("stop vm failed: %v", stopErr)
 		}
 	}
 
-	execResp, err := client.Exec(ctx, connect.NewRequest(&klitkavmv1.ExecRequest{
+	execResp, err := client.Exec(ctx, connect.NewRequest(&klitkav1.ExecRequest{
 		VmId:    vmID,
 		Command: command,
 		Args:    commandArgs,
@@ -184,7 +184,7 @@ func shellCommand(args []string) {
 	}
 
 	networkPolicy := buildNetworkPolicy(allowHosts, *blockPrivate)
-	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{
+	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkav1.StartVMRequest{
 		Mounts:  mounts,
 		Network: networkPolicy,
 		Secrets: secrets,
@@ -196,15 +196,15 @@ func shellCommand(args []string) {
 
 	stream := client.ExecStream(ctx)
 	sendMu := sync.Mutex{}
-	send := func(msg *klitkavmv1.ExecStreamRequest) error {
+	send := func(msg *klitkav1.ExecStreamRequest) error {
 		sendMu.Lock()
 		defer sendMu.Unlock()
 		return stream.Send(msg)
 	}
 
-	startMsg := &klitkavmv1.ExecStreamRequest{
-		Payload: &klitkavmv1.ExecStreamRequest_Start{
-			Start: &klitkavmv1.ExecStart{
+	startMsg := &klitkav1.ExecStreamRequest{
+		Payload: &klitkav1.ExecStreamRequest_Start{
+			Start: &klitkav1.ExecStart{
 				VmId:    vmID,
 				Command: "sh",
 				Args:    []string{},
@@ -241,9 +241,9 @@ func shellCommand(args []string) {
 		for {
 			n, err := reader.Read(buf)
 			if n > 0 {
-				if sendErr := send(&klitkavmv1.ExecStreamRequest{
-					Payload: &klitkavmv1.ExecStreamRequest_Input{
-						Input: &klitkavmv1.ExecInput{Data: buf[:n]},
+				if sendErr := send(&klitkav1.ExecStreamRequest{
+					Payload: &klitkav1.ExecStreamRequest_Input{
+						Input: &klitkav1.ExecInput{Data: buf[:n]},
 					},
 				}); sendErr != nil {
 					return
@@ -251,9 +251,9 @@ func shellCommand(args []string) {
 			}
 			if err != nil {
 				if errors.Is(err, io.EOF) {
-					_ = send(&klitkavmv1.ExecStreamRequest{
-						Payload: &klitkavmv1.ExecStreamRequest_Input{
-							Input: &klitkavmv1.ExecInput{Eof: true},
+					_ = send(&klitkav1.ExecStreamRequest{
+						Payload: &klitkav1.ExecStreamRequest_Input{
+							Input: &klitkav1.ExecInput{Eof: true},
 						},
 					})
 					_ = stream.CloseRequest()
@@ -299,7 +299,7 @@ func shellCommand(args []string) {
 
 	_ = stream.CloseRequest()
 
-	stopVM := connect.NewRequest(&klitkavmv1.StopVMRequest{VmId: vmID})
+	stopVM := connect.NewRequest(&klitkav1.StopVMRequest{VmId: vmID})
 	if _, stopErr := client.StopVM(ctx, stopVM); stopErr != nil {
 		log.Printf("stop vm failed: %v", stopErr)
 	}
@@ -309,19 +309,19 @@ func shellCommand(args []string) {
 	}
 }
 
-func sendResize(fd int, send func(*klitkavmv1.ExecStreamRequest) error) {
+func sendResize(fd int, send func(*klitkav1.ExecStreamRequest) error) {
 	cols, rows, err := term.GetSize(fd)
 	if err != nil {
 		return
 	}
-	_ = send(&klitkavmv1.ExecStreamRequest{
-		Payload: &klitkavmv1.ExecStreamRequest_Resize{
-			Resize: &klitkavmv1.PtyResize{Rows: uint32(rows), Cols: uint32(cols)},
+	_ = send(&klitkav1.ExecStreamRequest{
+		Payload: &klitkav1.ExecStreamRequest_Resize{
+			Resize: &klitkav1.PtyResize{Rows: uint32(rows), Cols: uint32(cols)},
 		},
 	})
 }
 
-func watchResize(fd int, send func(*klitkavmv1.ExecStreamRequest) error) {
+func watchResize(fd int, send func(*klitkav1.ExecStreamRequest) error) {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGWINCH)
 	go func() {
@@ -366,7 +366,7 @@ func startCommand(args []string) {
 	}
 
 	networkPolicy := buildNetworkPolicy(allowHosts, *blockPrivate)
-	resp, err := client.StartVM(ctx, connect.NewRequest(&klitkavmv1.StartVMRequest{
+	resp, err := client.StartVM(ctx, connect.NewRequest(&klitkav1.StartVMRequest{
 		Mounts:  mounts,
 		Network: networkPolicy,
 		Secrets: secrets,
@@ -394,7 +394,7 @@ func stopCommand(args []string) {
 	}
 	client := conn.client
 	ctx := context.Background()
-	_, err = client.StopVM(ctx, connect.NewRequest(&klitkavmv1.StopVMRequest{VmId: *vmID}))
+	_, err = client.StopVM(ctx, connect.NewRequest(&klitkav1.StopVMRequest{VmId: *vmID}))
 	if err != nil {
 		log.Fatalf("stop vm failed: %v", err)
 	}
@@ -422,30 +422,30 @@ func (s *stringSliceFlag) Set(value string) error {
 	return nil
 }
 
-func parseMountFlags(flags mountFlag) ([]*klitkavmv1.Mount, error) {
+func parseMountFlags(flags mountFlag) ([]*klitkav1.Mount, error) {
 	if len(flags) == 0 {
 		return nil, nil
 	}
 
-	mounts := make([]*klitkavmv1.Mount, 0, len(flags))
+	mounts := make([]*klitkav1.Mount, 0, len(flags))
 	for _, item := range flags {
 		hostPath, guestPath, modeRaw, err := splitMountSpec(item)
 		if err != nil {
 			return nil, err
 		}
-		mode := klitkavmv1.MountMode_MOUNT_MODE_RO
+		mode := klitkav1.MountMode_MOUNT_MODE_RO
 		switch strings.ToLower(strings.TrimSpace(modeRaw)) {
 		case "", "ro":
-			mode = klitkavmv1.MountMode_MOUNT_MODE_RO
+			mode = klitkav1.MountMode_MOUNT_MODE_RO
 		case "rw":
-			mode = klitkavmv1.MountMode_MOUNT_MODE_RW
+			mode = klitkav1.MountMode_MOUNT_MODE_RW
 		default:
 			return nil, fmt.Errorf("invalid mount mode: %q", modeRaw)
 		}
 		if hostPath == "" || guestPath == "" {
 			return nil, fmt.Errorf("invalid mount format: %q", item)
 		}
-		mounts = append(mounts, &klitkavmv1.Mount{
+		mounts = append(mounts, &klitkav1.Mount{
 			HostPath:  hostPath,
 			GuestPath: guestPath,
 			Mode:      mode,
@@ -482,12 +482,12 @@ func splitMountSpec(raw string) (string, string, string, error) {
 	return hostPath, guestPath, mode, nil
 }
 
-func parseSecretFlags(flags stringSliceFlag) ([]*klitkavmv1.Secret, error) {
+func parseSecretFlags(flags stringSliceFlag) ([]*klitkav1.Secret, error) {
 	if len(flags) == 0 {
 		return nil, nil
 	}
 
-	secrets := make([]*klitkavmv1.Secret, 0, len(flags))
+	secrets := make([]*klitkav1.Secret, 0, len(flags))
 	for _, item := range flags {
 		secret, err := parseSecretFlag(item)
 		if err != nil {
@@ -498,7 +498,7 @@ func parseSecretFlags(flags stringSliceFlag) ([]*klitkavmv1.Secret, error) {
 	return secrets, nil
 }
 
-func parseSecretFlag(item string) (*klitkavmv1.Secret, error) {
+func parseSecretFlag(item string) (*klitkav1.Secret, error) {
 	item = strings.TrimSpace(item)
 	if item == "" {
 		return nil, fmt.Errorf("invalid secret format")
@@ -561,7 +561,7 @@ func parseSecretFlag(item string) (*klitkavmv1.Secret, error) {
 		return nil, err
 	}
 
-	secret := &klitkavmv1.Secret{
+	secret := &klitkav1.Secret{
 		Name:  name,
 		Hosts: hosts,
 		Value: value,
@@ -569,27 +569,27 @@ func parseSecretFlag(item string) (*klitkavmv1.Secret, error) {
 	if header != "" {
 		secret.Header = header
 	}
-	if formatEnum != klitkavmv1.SecretFormat_SECRET_FORMAT_UNSPECIFIED {
+	if formatEnum != klitkav1.SecretFormat_SECRET_FORMAT_UNSPECIFIED {
 		secret.Format = formatEnum
 	}
 
 	return secret, nil
 }
 
-func parseSecretFormat(raw string) (klitkavmv1.SecretFormat, error) {
+func parseSecretFormat(raw string) (klitkav1.SecretFormat, error) {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "":
-		return klitkavmv1.SecretFormat_SECRET_FORMAT_UNSPECIFIED, nil
+		return klitkav1.SecretFormat_SECRET_FORMAT_UNSPECIFIED, nil
 	case "bearer":
-		return klitkavmv1.SecretFormat_SECRET_FORMAT_BEARER, nil
+		return klitkav1.SecretFormat_SECRET_FORMAT_BEARER, nil
 	case "raw":
-		return klitkavmv1.SecretFormat_SECRET_FORMAT_RAW, nil
+		return klitkav1.SecretFormat_SECRET_FORMAT_RAW, nil
 	default:
-		return klitkavmv1.SecretFormat_SECRET_FORMAT_UNSPECIFIED, fmt.Errorf("invalid secret format: %q", raw)
+		return klitkav1.SecretFormat_SECRET_FORMAT_UNSPECIFIED, fmt.Errorf("invalid secret format: %q", raw)
 	}
 }
 
-func buildNetworkPolicy(allowHosts stringSliceFlag, blockPrivate bool) *klitkavmv1.NetworkPolicy {
+func buildNetworkPolicy(allowHosts stringSliceFlag, blockPrivate bool) *klitkav1.NetworkPolicy {
 	if len(allowHosts) == 0 {
 		return nil
 	}
@@ -606,14 +606,14 @@ func buildNetworkPolicy(allowHosts stringSliceFlag, blockPrivate bool) *klitkavm
 		return nil
 	}
 
-	return &klitkavmv1.NetworkPolicy{
+	return &klitkav1.NetworkPolicy{
 		AllowHosts:         hosts,
 		BlockPrivateRanges: blockPrivate,
 	}
 }
 
 type daemonConnection struct {
-	client  klitkavmv1connect.DaemonServiceClient
+	client  klitkav1connect.DaemonServiceClient
 	baseURL string
 	wsl     *wslContext
 }
@@ -648,15 +648,15 @@ func newClient(socketPath, tcpAddr string) (daemonConnection, error) {
 	})
 	client := &http.Client{Transport: transport}
 	baseURL := "http://unix"
-	return daemonConnection{client: klitkavmv1connect.NewDaemonServiceClient(client, baseURL), baseURL: baseURL}, nil
+	return daemonConnection{client: klitkav1connect.NewDaemonServiceClient(client, baseURL), baseURL: baseURL}, nil
 }
 
-func newTcpClient(tcpAddr string) (klitkavmv1connect.DaemonServiceClient, string) {
+func newTcpClient(tcpAddr string) (klitkav1connect.DaemonServiceClient, string) {
 	baseURL := tcpBaseURL(tcpAddr)
 	client := &http.Client{Transport: http2Transport(func(network, addr string) (net.Conn, error) {
 		return (&net.Dialer{}).Dial(network, addr)
 	})}
-	return klitkavmv1connect.NewDaemonServiceClient(client, baseURL), baseURL
+	return klitkav1connect.NewDaemonServiceClient(client, baseURL), baseURL
 }
 
 func http2Transport(dial func(network, addr string) (net.Conn, error)) *http2.Transport {
@@ -676,14 +676,14 @@ func tcpBaseURL(addr string) string {
 }
 
 func socketDefault() string {
-	if value := os.Getenv("KLITKAVM_SOCKET"); value != "" {
+	if value := os.Getenv("KLITKA_SOCKET"); value != "" {
 		return value
 	}
 	return daemon.DefaultSocketPath()
 }
 
 func tcpDefault() string {
-	if value := os.Getenv("KLITKAVM_TCP"); value != "" {
+	if value := os.Getenv("KLITKA_TCP"); value != "" {
 		return value
 	}
 	return defaultTcpAddr()

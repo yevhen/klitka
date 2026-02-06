@@ -55,10 +55,10 @@ export async function buildDaemonEnv(): Promise<NodeJS.ProcessEnv> {
 
   return {
     ...process.env,
-    KLITKAVM_BACKEND: "vm",
-    KLITKAVM_GUEST_KERNEL: kernel,
-    KLITKAVM_GUEST_INITRD: initrd,
-    KLITKAVM_TMPDIR: "/tmp",
+    KLITKA_BACKEND: "vm",
+    KLITKA_GUEST_KERNEL: kernel,
+    KLITKA_GUEST_INITRD: initrd,
+    KLITKA_TMPDIR: "/tmp",
   };
 }
 

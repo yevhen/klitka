@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	klitkavmv1 "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1"
+	klitkav1 "github.com/klitka/klitka/proto/gen/go/klitka/v1"
 )
 
 const guestProxyHost = "10.0.2.2"
@@ -36,7 +36,7 @@ type networkPolicy struct {
 	blockPrivateRange bool
 }
 
-func newNetworkManager(req *klitkavmv1.StartVMRequest) (*networkManager, error) {
+func newNetworkManager(req *klitkav1.StartVMRequest) (*networkManager, error) {
 	policy := buildNetworkPolicy(req.GetNetwork())
 	secrets, secretEnv, err := buildSecrets(req.GetSecrets())
 	if err != nil {
@@ -81,7 +81,7 @@ func (manager *networkManager) Close() error {
 	return manager.proxy.Close()
 }
 
-func buildNetworkPolicy(cfg *klitkavmv1.NetworkPolicy) networkPolicy {
+func buildNetworkPolicy(cfg *klitkav1.NetworkPolicy) networkPolicy {
 	if cfg == nil {
 		return networkPolicy{}
 	}
@@ -503,7 +503,7 @@ func joinHostPort(host string, port int) string {
 
 func newProxyTransport() (*http.Transport, error) {
 	tlsConfig := &tls.Config{}
-	if strings.TrimSpace(os.Getenv("KLITKAVM_PROXY_INSECURE")) != "" {
+	if strings.TrimSpace(os.Getenv("KLITKA_PROXY_INSECURE")) != "" {
 		tlsConfig.InsecureSkipVerify = true
 	}
 	return &http.Transport{

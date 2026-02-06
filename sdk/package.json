@@ -1,5 +1,5 @@
 {
-  "name": "@klitkavm/sdk",
+  "name": "@klitka/sdk",
   "version": "0.0.1",
   "private": true,
   "type": "module",

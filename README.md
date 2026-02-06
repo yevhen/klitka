@@ -1,6 +1,23 @@
-# klitkavm
+# klitka
 
 Local sandbox runtime for running LLM workloads inside a microVM with policy‑controlled filesystem and networking.
+
+## Installation
+
+### Homebrew (macOS/Linux)
+```bash
+brew install KlitkaAI/tap/klitka
+```
+
+### Linux (tar.gz / deb / rpm)
+Download the release artifact for your platform from the GitHub releases page.
+The release archives include the guest kernel/initramfs under `share/klitka/guest/`.
+
+### From source
+Clone the repo and build the guest image before running tests or the daemon:
+```bash
+./guest/image/build.sh
+```
 
 ## Development environment (Nix)
 

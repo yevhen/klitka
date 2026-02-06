@@ -3,12 +3,12 @@
 Guidance for AI agents working on this repo.
 
 ## Project overview
-`klitkavm` is a local sandbox runtime (Go daemon + Go CLI + TS SDK) that runs untrusted code in a microVM. The daemon manages VM lifecycle, virtio‑serial exec, and virtiofs mounts. The SDK/CLI speak the Connect/Protobuf API over a local socket or TCP.
+`klitka` is a local sandbox runtime (Go daemon + Go CLI + TS SDK) that runs untrusted code in a microVM. The daemon manages VM lifecycle, virtio‑serial exec, and virtiofs mounts. The SDK/CLI speak the Connect/Protobuf API over a local socket or TCP.
 
 ## Repo layout
 ```
-cli/            Go CLI (klitkavm)
-cmd/            daemon entrypoint (klitkavm-daemon)
+cli/            Go CLI (klitka)
+cmd/            daemon entrypoint (klitka-daemon)
 daemon/         VM lifecycle + backend logic
 guest/          guest image build + sandboxd (Zig)
 proto/          Protobuf contract
@@ -47,18 +47,18 @@ Artifacts land in `guest/image/out/`:
 ## Run daemon + CLI
 ```bash
 # daemon (TCP)
-go run ./cmd/klitkavm-daemon --tcp 127.0.0.1:0
+go run ./cmd/klitka-daemon --tcp 127.0.0.1:0
 
 # exec via CLI
-KLITKAVM_TCP=127.0.0.1:PORT go run ./cli exec -- uname -a
+KLITKA_TCP=127.0.0.1:PORT go run ./cli exec -- uname -a
 
 # shell via CLI
-KLITKAVM_TCP=127.0.0.1:PORT go run ./cli shell
+KLITKA_TCP=127.0.0.1:PORT go run ./cli shell
 ```
 
 ## SDK usage
 ```ts
-import { Sandbox } from "@klitkavm/sdk";
+import { Sandbox } from "@klitka/sdk";
 
 const sandbox = await Sandbox.start({ baseUrl: "http://127.0.0.1:PORT" });
 const res = await sandbox.exec(["uname", "-a"]);
@@ -67,22 +67,22 @@ await sandbox.close();
 
 ## Key environment variables
 Connection:
-- `KLITKAVM_SOCKET`: default UNIX socket path for CLI.
-- `KLITKAVM_TCP`: default TCP address for CLI/SDK.
+- `KLITKA_SOCKET`: default UNIX socket path for CLI.
+- `KLITKA_TCP`: default TCP address for CLI/SDK.
 
 VM backend:
-- `KLITKAVM_BACKEND`: `vm` | `host` | `auto` (default auto).
-- `KLITKAVM_GUEST_KERNEL`: path to `vmlinuz`.
-- `KLITKAVM_GUEST_INITRD`: path to `initramfs.cpio.gz`.
-- `KLITKAVM_GUEST_APPEND`: extra kernel append args.
-- `KLITKAVM_QEMU`: override QEMU binary path.
-- `KLITKAVM_VIRTIOFSD`: override virtiofsd path.
-- `KLITKAVM_TMPDIR`: base temp dir for VM runtime data.
-- `KLITKAVM_DEBUG_QEMU`: non-empty to log QEMU stdout/stderr.
+- `KLITKA_BACKEND`: `vm` | `host` | `auto` (default auto).
+- `KLITKA_GUEST_KERNEL`: path to `vmlinuz`.
+- `KLITKA_GUEST_INITRD`: path to `initramfs.cpio.gz`.
+- `KLITKA_GUEST_APPEND`: extra kernel append args.
+- `KLITKA_QEMU`: override QEMU binary path.
+- `KLITKA_VIRTIOFSD`: override virtiofsd path.
+- `KLITKA_TMPDIR`: base temp dir for VM runtime data.
+- `KLITKA_DEBUG_QEMU`: non-empty to log QEMU stdout/stderr.
 
 Debug:
-- `KLITKAVM_DEBUG_CONN=1`: log initial bytes for new connections.
-- `KLITKAVM_DEBUG_HTTP=1`: log HTTP request lines.
+- `KLITKA_DEBUG_CONN=1`: log initial bytes for new connections.
+- `KLITKA_DEBUG_HTTP=1`: log HTTP request lines.
 
 ## Tests
 ```bash

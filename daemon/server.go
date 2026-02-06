@@ -73,10 +73,10 @@ func DefaultSocketPath() string {
 		if err != nil {
 			return ""
 		}
-		return filepath.Join(home, "Library", "Application Support", "klitkavm", "daemon.sock")
+		return filepath.Join(home, "Library", "Application Support", "klitka", "daemon.sock")
 	}
 	if runtime.GOOS == "linux" {
-		return "/var/run/klitkavm.sock"
+		return "/var/run/klitka.sock"
 	}
 	return ""
 }

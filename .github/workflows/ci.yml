@@ -16,9 +16,9 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
-      - name: Build guest image
+      - name: Build guest assets
         run: |
-          nix develop --command bash -c "./guest/image/build.sh"
+          nix develop --command bash -c "./scripts/build-guest-assets.sh"
 
       - name: Run Go tests
         run: |
@@ -28,8 +28,32 @@ jobs:
         run: |
           nix develop --command bash -c "cd sdk && npm test"
 
+      - name: Setup Go (for GoReleaser)
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Run GoReleaser snapshot
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --snapshot --clean --skip-publish
+
+      - name: Smoke test archive
+        run: |
+          nix develop --command bash -c "./scripts/smoke-archive.sh"
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          if-no-files-found: error
+
   test-windows:
     runs-on: windows-latest
+    needs: test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,6 +88,41 @@ jobs:
       - name: Run WSL2 smoke test
         shell: powershell
         env:
-          KLITKAVM_WSL_DISTRO: Ubuntu
+          KLITKA_WSL_DISTRO: Ubuntu
         run: |
           go test ./...
+
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Smoke test release archive
+        shell: powershell
+        env:
+          KLITKA_WSL_DISTRO: Ubuntu
+        run: |
+          ./scripts/smoke-archive.ps1
+
+  smoke-macos:
+    runs-on: macos-latest
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Smoke test archive
+        run: |
+          nix develop --command bash -c "./scripts/smoke-archive.sh"

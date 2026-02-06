@@ -1,5 +1,5 @@
 {
-  description = "klitkavm development environment";
+  description = "klitka development environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -34,7 +34,7 @@
               pkgs.git
             ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.virtiofsd ];
             shellHook = ''
-              echo "klitkavm dev shell: qemu + virtiofsd + go + node + zig ready"
+              echo "klitka dev shell: qemu + virtiofsd + go + node + zig ready"
               echo "Note: install connect proto plugins if needed:"
               echo "  go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest"
               echo "  npm i -D @bufbuild/protoc-gen-es @connectrpc/protoc-gen-connect-es"

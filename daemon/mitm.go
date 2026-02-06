@@ -63,7 +63,7 @@ func loadOrCreateCA() (*mitmCA, error) {
 	now := time.Now().Add(-1 * time.Hour)
 	template := &x509.Certificate{
 		SerialNumber:          serial,
-		Subject:               pkix.Name{CommonName: "klitkavm-mitm-ca"},
+		Subject:               pkix.Name{CommonName: "klitka-mitm-ca"},
 		NotBefore:             now,
 		NotAfter:              now.Add(10 * 365 * 24 * time.Hour),
 		IsCA:                  true,
@@ -157,10 +157,10 @@ func (ca *mitmCA) certificateForHost(host string) (*tls.Certificate, error) {
 func mitmDir() (string, error) {
 	configDir, err := os.UserConfigDir()
 	if err != nil || strings.TrimSpace(configDir) == "" {
-		fallback := filepath.Join(os.TempDir(), "klitkavm-mitm")
+		fallback := filepath.Join(os.TempDir(), "klitka-mitm")
 		return fallback, nil
 	}
-	return filepath.Join(configDir, "klitkavm", "mitm"), nil
+	return filepath.Join(configDir, "klitka", "mitm"), nil
 }
 
 func readCertificate(path string) (*x509.Certificate, error) {

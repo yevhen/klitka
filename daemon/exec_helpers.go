@@ -13,7 +13,7 @@ import (
 
 	"github.com/creack/pty"
 
-	klitkavmv1 "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1"
+	klitkav1 "github.com/klitka/klitka/proto/gen/go/klitka/v1"
 )
 
 func commandFromArgs(ctx context.Context, command string, args []string) *exec.Cmd {
@@ -52,7 +52,7 @@ func readOutput(
 	wg *sync.WaitGroup,
 	reader io.Reader,
 	stream string,
-	send func(*klitkavmv1.ExecStreamResponse) error,
+	send func(*klitkav1.ExecStreamResponse) error,
 	errCh chan<- error,
 ) {
 	defer wg.Done()
@@ -94,10 +94,10 @@ func sendEof(stdin io.WriteCloser, ptyFile *os.File) {
 	_ = stdin.Close()
 }
 
-func execOutput(stream string, data []byte) *klitkavmv1.ExecStreamResponse {
-	return &klitkavmv1.ExecStreamResponse{
-		Payload: &klitkavmv1.ExecStreamResponse_Output{
-			Output: &klitkavmv1.ExecOutput{
+func execOutput(stream string, data []byte) *klitkav1.ExecStreamResponse {
+	return &klitkav1.ExecStreamResponse{
+		Payload: &klitkav1.ExecStreamResponse_Output{
+			Output: &klitkav1.ExecOutput{
 				Stream: stream,
 				Data:   data,
 			},
@@ -105,10 +105,10 @@ func execOutput(stream string, data []byte) *klitkavmv1.ExecStreamResponse {
 	}
 }
 
-func execExit(code int32) *klitkavmv1.ExecStreamResponse {
-	return &klitkavmv1.ExecStreamResponse{
-		Payload: &klitkavmv1.ExecStreamResponse_Exit{
-			Exit: &klitkavmv1.ExecExit{ExitCode: code},
+func execExit(code int32) *klitkav1.ExecStreamResponse {
+	return &klitkav1.ExecStreamResponse{
+		Payload: &klitkav1.ExecStreamResponse_Exit{
+			Exit: &klitkav1.ExecExit{ExitCode: code},
 		},
 	}
 }

@@ -55,7 +55,7 @@ test("sdk rw mount + memfs root", async (t) => {
     return;
   }
   const daemonEnv = await buildDaemonEnv();
-  const daemon = spawn("go", ["run", "./cmd/klitkavm-daemon", "--tcp", "127.0.0.1:0"], {
+  const daemon = spawn("go", ["run", "./cmd/klitka-daemon", "--tcp", "127.0.0.1:0"], {
     cwd: repoRoot,
     stdio: "pipe",
     detached: true,
@@ -65,7 +65,7 @@ test("sdk rw mount + memfs root", async (t) => {
   try {
     const port = await waitForDaemon(daemon);
 
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "klitkavm-mount-"));
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "klitka-mount-"));
     const sandbox = await Sandbox.start({
       baseUrl: `http://127.0.0.1:${port}`,
       fs: {

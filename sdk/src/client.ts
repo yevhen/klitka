@@ -1,7 +1,7 @@
 import { createPromiseClient, type PromiseClient } from "@connectrpc/connect";
 import { createConnectTransport, Http2SessionManager } from "@connectrpc/connect-node";
 
-import { DaemonService } from "./gen/klitkavm/v1/daemon_connect";
+import { DaemonService } from "./gen/klitka/v1/daemon_connect";
 import {
   ExecInput,
   ExecRequest,
@@ -15,7 +15,7 @@ import {
   SecretFormat,
   StartVMRequest,
   StopVMRequest,
-} from "./gen/klitkavm/v1/daemon_pb";
+} from "./gen/klitka/v1/daemon_pb";
 
 export type MountConfig = {
   hostPath: string;
@@ -301,9 +301,9 @@ function normalizeCommand(command: string | string[]): [string, string[]] {
 }
 
 function createClient(options: SandboxOptions) {
-  const rawBaseUrl = options.baseUrl ?? process.env.KLITKAVM_TCP;
+  const rawBaseUrl = options.baseUrl ?? process.env.KLITKA_TCP;
   if (!rawBaseUrl) {
-    throw new Error("baseUrl or KLITKAVM_TCP must be set for SDK connections");
+    throw new Error("baseUrl or KLITKA_TCP must be set for SDK connections");
   }
   const baseUrl = normalizeBaseUrl(rawBaseUrl);
   const sessionManager = new Http2SessionManager(baseUrl, {

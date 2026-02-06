@@ -14,10 +14,10 @@ func requireVMBackend(t *testing.T) {
 	t.Helper()
 	kernel, initrd := ensureGuestAssets(t)
 	ensureQemu(t)
-	t.Setenv("KLITKAVM_BACKEND", "vm")
-	t.Setenv("KLITKAVM_GUEST_KERNEL", kernel)
-	t.Setenv("KLITKAVM_GUEST_INITRD", initrd)
-	t.Setenv("KLITKAVM_TMPDIR", "/tmp")
+	t.Setenv("KLITKA_BACKEND", "vm")
+	t.Setenv("KLITKA_GUEST_KERNEL", kernel)
+	t.Setenv("KLITKA_GUEST_INITRD", initrd)
+	t.Setenv("KLITKA_TMPDIR", "/tmp")
 }
 
 func requireVirtiofsd(t *testing.T) {

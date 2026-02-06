@@ -14,18 +14,18 @@ import (
 	"strings"
 	"time"
 
-	klitkavmv1 "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1"
+	klitkav1 "github.com/klitka/klitka/proto/gen/go/klitka/v1"
 )
 
 const defaultWslTcpAddr = "127.0.0.1:5711"
 
 const (
-	wslDistroEnv      = "KLITKAVM_WSL_DISTRO"
-	wslRepoEnv        = "KLITKAVM_WSL_REPO"
-	wslDaemonEnv      = "KLITKAVM_WSL_DAEMON_PATH"
-	wslGuestDirEnv    = "KLITKAVM_WSL_GUEST_DIR"
-	wslGuestKernelEnv = "KLITKAVM_WSL_GUEST_KERNEL"
-	wslGuestInitrdEnv = "KLITKAVM_WSL_GUEST_INITRD"
+	wslDistroEnv      = "KLITKA_WSL_DISTRO"
+	wslRepoEnv        = "KLITKA_WSL_REPO"
+	wslDaemonEnv      = "KLITKA_WSL_DAEMON_PATH"
+	wslGuestDirEnv    = "KLITKA_WSL_GUEST_DIR"
+	wslGuestKernelEnv = "KLITKA_WSL_GUEST_KERNEL"
+	wslGuestInitrdEnv = "KLITKA_WSL_GUEST_INITRD"
 )
 
 type wslContext struct {
@@ -67,7 +67,7 @@ func ensureWslDaemon(ctx context.Context, tcpAddr string) (*wslContext, error) {
 		if err := wsl.requireCommand(ctx, "go"); err != nil {
 			return nil, err
 		}
-		buildCmd := fmt.Sprintf("cd %s && mkdir -p bin && go build -o %s ./cmd/klitkavm-daemon", shellEscape(repoRootWsl), shellEscape(daemonPath))
+		buildCmd := fmt.Sprintf("cd %s && mkdir -p bin && go build -o %s ./cmd/klitka-daemon", shellEscape(repoRootWsl), shellEscape(daemonPath))
 		if err := wsl.run(ctx, "bash", "-lc", buildCmd); err != nil {
 			return nil, fmt.Errorf("build daemon in WSL failed: %w", err)
 		}
@@ -79,16 +79,16 @@ func ensureWslDaemon(ctx context.Context, tcpAddr string) (*wslContext, error) {
 	}
 
 	startCmd := strings.Join([]string{
-		"KLITKAVM_BACKEND=vm",
-		"KLITKAVM_TMPDIR=/tmp",
-		"KLITKAVM_GUEST_KERNEL=" + shellEscape(kernelPath),
-		"KLITKAVM_GUEST_INITRD=" + shellEscape(initrdPath),
+		"KLITKA_BACKEND=vm",
+		"KLITKA_TMPDIR=/tmp",
+		"KLITKA_GUEST_KERNEL=" + shellEscape(kernelPath),
+		"KLITKA_GUEST_INITRD=" + shellEscape(initrdPath),
 		"nohup",
 		shellEscape(daemonPath),
 		"--tcp",
 		shellEscape(tcpAddr),
 		">",
-		shellEscape("/tmp/klitkavm-daemon.log"),
+		shellEscape("/tmp/klitka-daemon.log"),
 		"2>&1",
 		"&",
 	}, " ")
@@ -104,11 +104,11 @@ func ensureWslDaemon(ctx context.Context, tcpAddr string) (*wslContext, error) {
 	return wsl, nil
 }
 
-func rewriteMountsForWsl(ctx context.Context, wsl *wslContext, mounts []*klitkavmv1.Mount) ([]*klitkavmv1.Mount, error) {
+func rewriteMountsForWsl(ctx context.Context, wsl *wslContext, mounts []*klitkav1.Mount) ([]*klitkav1.Mount, error) {
 	if wsl == nil || len(mounts) == 0 {
 		return mounts, nil
 	}
-	out := make([]*klitkavmv1.Mount, 0, len(mounts))
+	out := make([]*klitkav1.Mount, 0, len(mounts))
 	for _, mount := range mounts {
 		hostPath := strings.TrimSpace(mount.GetHostPath())
 		if hostPath == "" {
@@ -121,7 +121,7 @@ func rewriteMountsForWsl(ctx context.Context, wsl *wslContext, mounts []*klitkav
 			}
 			hostPath = converted
 		}
-		out = append(out, &klitkavmv1.Mount{
+		out = append(out, &klitkav1.Mount{
 			HostPath:  hostPath,
 			GuestPath: mount.GetGuestPath(),
 			Mode:      mount.GetMode(),
@@ -175,9 +175,9 @@ func resolveDaemonPath(wsl *wslContext, repoRootWsl string) (string, error) {
 		return wsl.toWslPath(context.Background(), override)
 	}
 	if repoRootWsl == "" {
-		return "", errors.New("KLITKAVM_WSL_DAEMON_PATH or KLITKAVM_WSL_REPO must be set")
+		return "", errors.New("KLITKA_WSL_DAEMON_PATH or KLITKA_WSL_REPO must be set")
 	}
-	return path.Join(repoRootWsl, "bin", "klitkavm-daemon"), nil
+	return path.Join(repoRootWsl, "bin", "klitka-daemon"), nil
 }
 
 func resolveGuestAssets(wsl *wslContext, repoRootWin, repoRootWsl string) (string, string, error) {
@@ -188,7 +188,7 @@ func resolveGuestAssets(wsl *wslContext, repoRootWin, repoRootWsl string) (strin
 		base := strings.TrimSpace(os.Getenv(wslGuestDirEnv))
 		if base == "" {
 			if repoRootWsl == "" {
-				return "", "", errors.New("KLITKAVM_WSL_GUEST_DIR or KLITKAVM_WSL_REPO must be set")
+				return "", "", errors.New("KLITKA_WSL_GUEST_DIR or KLITKA_WSL_REPO must be set")
 			}
 			base = path.Join(repoRootWsl, "guest", "image", "out")
 		}
@@ -282,7 +282,7 @@ func shellEscape(value string) string {
 }
 
 func findRepoRoot() (string, error) {
-	if override := strings.TrimSpace(os.Getenv("KLITKAVM_REPO_ROOT")); override != "" {
+	if override := strings.TrimSpace(os.Getenv("KLITKA_REPO_ROOT")); override != "" {
 		return override, nil
 	}
 	cwd, err := os.Getwd()
@@ -300,7 +300,7 @@ func findRepoRoot() (string, error) {
 		}
 		path = parent
 	}
-	return "", errors.New("could not find go.mod; set KLITKAVM_REPO_ROOT")
+	return "", errors.New("could not find go.mod; set KLITKA_REPO_ROOT")
 }
 
 func fileExists(path string) bool {

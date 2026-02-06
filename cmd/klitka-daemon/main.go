@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/klitkavm/klitkavm/daemon"
-	klitkavmv1connect "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1/klitkavmv1connect"
+	"github.com/klitka/klitka/daemon"
+	klitkav1connect "github.com/klitka/klitka/proto/gen/go/klitka/v1/klitkav1connect"
 )
 
 func main() {
@@ -18,7 +18,7 @@ func main() {
 	flag.Parse()
 
 	service := daemon.NewService()
-	path, handler := klitkavmv1connect.NewDaemonServiceHandler(service)
+	path, handler := klitkav1connect.NewDaemonServiceHandler(service)
 	mux := http.NewServeMux()
 	mux.Handle(path, handler)
 

@@ -5,7 +5,7 @@ package main
 import (
 	"context"
 
-	klitkavmv1 "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1"
+	klitkav1 "github.com/klitka/klitka/proto/gen/go/klitka/v1"
 )
 
 type wslContext struct{}
@@ -22,6 +22,6 @@ func ensureWslDaemon(_ context.Context, _ string) (*wslContext, error) {
 	return nil, nil
 }
 
-func rewriteMountsForWsl(_ context.Context, _ *wslContext, mounts []*klitkavmv1.Mount) ([]*klitkavmv1.Mount, error) {
+func rewriteMountsForWsl(_ context.Context, _ *wslContext, mounts []*klitkav1.Mount) ([]*klitkav1.Mount, error) {
 	return mounts, nil
 }

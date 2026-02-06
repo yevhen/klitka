@@ -46,14 +46,14 @@ func (l *debugListener) Accept() (net.Conn, error) {
 }
 
 func wrapDebugListener(listener net.Listener, label string) net.Listener {
-	if os.Getenv("KLITKAVM_DEBUG_CONN") == "1" {
+	if os.Getenv("KLITKA_DEBUG_CONN") == "1" {
 		return &debugListener{Listener: listener, label: label}
 	}
 	return listener
 }
 
 func wrapDebugHandler(handler http.Handler) http.Handler {
-	if os.Getenv("KLITKAVM_DEBUG_HTTP") != "1" {
+	if os.Getenv("KLITKA_DEBUG_HTTP") != "1" {
 		return handler
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

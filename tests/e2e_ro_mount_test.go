@@ -12,15 +12,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/klitkavm/klitkavm/daemon"
-	klitkavmv1connect "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1/klitkavmv1connect"
+	"github.com/klitka/klitka/daemon"
+	klitkav1connect "github.com/klitka/klitka/proto/gen/go/klitka/v1/klitkav1connect"
 )
 
 func TestE2ERoMount(t *testing.T) {
 	requireVMBackend(t)
 	requireVirtiofsd(t)
 	service := daemon.NewService()
-	path, handler := klitkavmv1connect.NewDaemonServiceHandler(service)
+	path, handler := klitkav1connect.NewDaemonServiceHandler(service)
 	mux := http.NewServeMux()
 	mux.Handle(path, handler)
 
@@ -69,7 +69,7 @@ func runCLIExec(ctx context.Context, addr string, args []string) ([]byte, error)
 
 	cmdArgs := append([]string{"run", cliPath, "exec"}, args...)
 	cmd := exec.CommandContext(ctx, "go", cmdArgs...)
-	cmd.Env = append(os.Environ(), "KLITKAVM_TCP="+addr)
+	cmd.Env = append(os.Environ(), "KLITKA_TCP="+addr)
 	cmd.Dir = repoRoot
 	return cmd.CombinedOutput()
 }

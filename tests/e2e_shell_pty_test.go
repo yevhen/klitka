@@ -13,14 +13,14 @@ import (
 
 	"net/http"
 
-	"github.com/klitkavm/klitkavm/daemon"
-	klitkavmv1connect "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1/klitkavmv1connect"
+	"github.com/klitka/klitka/daemon"
+	klitkav1connect "github.com/klitka/klitka/proto/gen/go/klitka/v1/klitkav1connect"
 )
 
 func TestE2EShellPTY(t *testing.T) {
 	requireVMBackend(t)
 	service := daemon.NewService()
-	path, handler := klitkavmv1connect.NewDaemonServiceHandler(service)
+	path, handler := klitkav1connect.NewDaemonServiceHandler(service)
 	mux := http.NewServeMux()
 	mux.Handle(path, handler)
 
@@ -43,7 +43,7 @@ func TestE2EShellPTY(t *testing.T) {
 	repoRoot := filepath.Dir(wd)
 	cliPath := filepath.Join(repoRoot, "cli")
 	cmd := exec.CommandContext(ctx, "go", "run", cliPath, "shell")
-	cmd.Env = append(os.Environ(), "KLITKAVM_TCP="+addr)
+	cmd.Env = append(os.Environ(), "KLITKA_TCP="+addr)
 	cmd.Dir = repoRoot
 	cmd.Stdin = strings.NewReader("echo hi\nexit\n")
 

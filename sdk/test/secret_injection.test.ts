@@ -63,9 +63,9 @@ const hasVirtiofsd = await ensureVirtiofsd();
 test("sdk secret injection", { skip: !hasVirtiofsd }, async () => {
   const daemonEnv = {
     ...(await buildDaemonEnv()),
-    KLITKAVM_PROXY_INSECURE: "1",
+    KLITKA_PROXY_INSECURE: "1",
   };
-  const daemon = spawn("go", ["run", "./cmd/klitkavm-daemon", "--tcp", "127.0.0.1:0"], {
+  const daemon = spawn("go", ["run", "./cmd/klitka-daemon", "--tcp", "127.0.0.1:0"], {
     cwd: repoRoot,
     stdio: "pipe",
     detached: true,

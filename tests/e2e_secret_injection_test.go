@@ -12,17 +12,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/klitkavm/klitkavm/daemon"
-	klitkavmv1connect "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1/klitkavmv1connect"
+	"github.com/klitka/klitka/daemon"
+	klitkav1connect "github.com/klitka/klitka/proto/gen/go/klitka/v1/klitkav1connect"
 )
 
 func TestE2ESecretInjection(t *testing.T) {
 	requireVMBackend(t)
 	requireVirtiofsd(t)
-	t.Setenv("KLITKAVM_PROXY_INSECURE", "1")
+	t.Setenv("KLITKA_PROXY_INSECURE", "1")
 
 	service := daemon.NewService()
-	path, handler := klitkavmv1connect.NewDaemonServiceHandler(service)
+	path, handler := klitkav1connect.NewDaemonServiceHandler(service)
 	mux := http.NewServeMux()
 	mux.Handle(path, handler)
 

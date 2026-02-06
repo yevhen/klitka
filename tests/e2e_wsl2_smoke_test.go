@@ -35,7 +35,7 @@ func TestWSL2Smoke(t *testing.T) {
 	cmd.Env = os.Environ()
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("klitkavm exec failed: %v\noutput: %s", err, output)
+		t.Fatalf("klitka exec failed: %v\noutput: %s", err, output)
 	}
 
 	if !strings.Contains(string(output), "Linux") {

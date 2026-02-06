@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	klitkavmv1 "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1"
+	klitkav1 "github.com/klitka/klitka/proto/gen/go/klitka/v1"
 )
 
 type secretSpec struct {
@@ -15,11 +15,11 @@ type secretSpec struct {
 	hosts       []string
 	value       string
 	header      string
-	format      klitkavmv1.SecretFormat
+	format      klitkav1.SecretFormat
 	placeholder string
 }
 
-func buildSecrets(secrets []*klitkavmv1.Secret) ([]secretSpec, []string, error) {
+func buildSecrets(secrets []*klitkav1.Secret) ([]secretSpec, []string, error) {
 	if len(secrets) == 0 {
 		return nil, nil, nil
 	}
@@ -55,8 +55,8 @@ func buildSecrets(secrets []*klitkavmv1.Secret) ([]secretSpec, []string, error) 
 		header = http.CanonicalHeaderKey(header)
 
 		format := secret.GetFormat()
-		if format == klitkavmv1.SecretFormat_SECRET_FORMAT_UNSPECIFIED {
-			format = klitkavmv1.SecretFormat_SECRET_FORMAT_BEARER
+		if format == klitkav1.SecretFormat_SECRET_FORMAT_UNSPECIFIED {
+			format = klitkav1.SecretFormat_SECRET_FORMAT_BEARER
 		}
 
 		placeholder, err := generatePlaceholder(name)
@@ -83,7 +83,7 @@ func generatePlaceholder(name string) (string, error) {
 	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("klitkavm:%s:%s", strings.ToLower(name), hex.EncodeToString(buf)), nil
+	return fmt.Sprintf("klitka:%s:%s", strings.ToLower(name), hex.EncodeToString(buf)), nil
 }
 
 func applySecrets(host string, headers http.Header, secrets []secretSpec) {
@@ -118,7 +118,7 @@ func (spec secretSpec) apply(headers http.Header) {
 	for i, value := range values {
 		if strings.Contains(value, spec.placeholder) {
 			replaced = true
-			if spec.format == klitkavmv1.SecretFormat_SECRET_FORMAT_BEARER && value == spec.placeholder {
+			if spec.format == klitkav1.SecretFormat_SECRET_FORMAT_BEARER && value == spec.placeholder {
 				value = "Bearer " + spec.value
 			} else {
 				value = strings.ReplaceAll(value, spec.placeholder, spec.value)

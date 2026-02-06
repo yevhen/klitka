@@ -8,7 +8,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
 
-	klitkavmv1 "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1"
+	klitkav1 "github.com/klitka/klitka/proto/gen/go/klitka/v1"
 )
 
 type Service struct {
@@ -22,8 +22,8 @@ func NewService() *Service {
 
 func (s *Service) StartVM(
 	_ context.Context,
-	req *connect.Request[klitkavmv1.StartVMRequest],
-) (*connect.Response[klitkavmv1.StartVMResponse], error) {
+	req *connect.Request[klitkav1.StartVMRequest],
+) (*connect.Response[klitkav1.StartVMResponse], error) {
 	vmID := uuid.NewString()
 	vm, err := newVM(vmID, req.Msg)
 	if err != nil {
@@ -34,13 +34,13 @@ func (s *Service) StartVM(
 	s.vms[vmID] = vm
 	s.mu.Unlock()
 
-	return connect.NewResponse(&klitkavmv1.StartVMResponse{VmId: vmID}), nil
+	return connect.NewResponse(&klitkav1.StartVMResponse{VmId: vmID}), nil
 }
 
 func (s *Service) Exec(
 	ctx context.Context,
-	req *connect.Request[klitkavmv1.ExecRequest],
-) (*connect.Response[klitkavmv1.ExecResponse], error) {
+	req *connect.Request[klitkav1.ExecRequest],
+) (*connect.Response[klitkav1.ExecResponse], error) {
 	vmID := req.Msg.GetVmId()
 	if vmID == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("vm_id is required"))
@@ -66,7 +66,7 @@ func (s *Service) Exec(
 
 func (s *Service) ExecStream(
 	ctx context.Context,
-	stream *connect.BidiStream[klitkavmv1.ExecStreamRequest, klitkavmv1.ExecStreamResponse],
+	stream *connect.BidiStream[klitkav1.ExecStreamRequest, klitkav1.ExecStreamResponse],
 ) error {
 	first, err := stream.Receive()
 	if err != nil {
@@ -93,8 +93,8 @@ func (s *Service) ExecStream(
 
 func (s *Service) StopVM(
 	_ context.Context,
-	req *connect.Request[klitkavmv1.StopVMRequest],
-) (*connect.Response[klitkavmv1.StopVMResponse], error) {
+	req *connect.Request[klitkav1.StopVMRequest],
+) (*connect.Response[klitkav1.StopVMResponse], error) {
 	vmID := req.Msg.GetVmId()
 	if vmID == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("vm_id is required"))
@@ -117,7 +117,7 @@ func (s *Service) StopVM(
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
 	}
-	return connect.NewResponse(&klitkavmv1.StopVMResponse{}), nil
+	return connect.NewResponse(&klitkav1.StopVMResponse{}), nil
 }
 
 func (s *Service) getVM(vmID string) (*VM, bool) {

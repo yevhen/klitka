@@ -8,12 +8,12 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
-	klitkavmv1 "github.com/klitkavm/klitkavm/proto/gen/go/klitkavm/v1"
+	klitkav1 "github.com/klitka/klitka/proto/gen/go/klitka/v1"
 )
 
 type ExecBackend interface {
-	Exec(ctx context.Context, command string, args []string) (*klitkavmv1.ExecResponse, error)
-	ExecStream(ctx context.Context, start *klitkavmv1.ExecStart, stream *connect.BidiStream[klitkavmv1.ExecStreamRequest, klitkavmv1.ExecStreamResponse]) error
+	Exec(ctx context.Context, command string, args []string) (*klitkav1.ExecResponse, error)
+	ExecStream(ctx context.Context, start *klitkav1.ExecStart, stream *connect.BidiStream[klitkav1.ExecStreamRequest, klitkav1.ExecStreamResponse]) error
 	Close() error
 }
 
@@ -33,7 +33,7 @@ const (
 
 var ErrVMUnavailable = errors.New("vm backend unavailable")
 
-func newVM(id string, req *klitkavmv1.StartVMRequest) (*VM, error) {
+func newVM(id string, req *klitkav1.StartVMRequest) (*VM, error) {
 	network, err := newNetworkManager(req)
 	if err != nil {
 		return nil, err
@@ -74,7 +74,7 @@ func newVM(id string, req *klitkavmv1.StartVMRequest) (*VM, error) {
 }
 
 func backendModeFromEnv() backendMode {
-	raw := strings.TrimSpace(strings.ToLower(os.Getenv("KLITKAVM_BACKEND")))
+	raw := strings.TrimSpace(strings.ToLower(os.Getenv("KLITKA_BACKEND")))
 	if raw == "" {
 		return backendAuto
 	}

@@ -1,7 +1,7 @@
-# klitkavm — SDK + local daemon spec
+# klitka — SDK + local daemon spec
 
 ## 0. Summary
-`klitkavm` is a local, cross‑platform sandbox runtime that provides a **simple SDK** and **CLI** while hiding the complexity of running a **microVM** with controlled **filesystem and network policies**. It ships a **local daemon** that manages hypervisor lifecycle, VFS mounts, network proxying, and policy enforcement. The SDK/CLI talk to the daemon over a local IPC channel.
+`klitka` is a local, cross‑platform sandbox runtime that provides a **simple SDK** and **CLI** while hiding the complexity of running a **microVM** with controlled **filesystem and network policies**. It ships a **local daemon** that manages hypervisor lifecycle, VFS mounts, network proxying, and policy enforcement. The SDK/CLI talk to the daemon over a local IPC channel.
 
 Implementation choices (baseline):
 - **SDK:** TypeScript (Node).
@@ -30,7 +30,7 @@ Contract evolution:
 
 ```
 ┌──────────────────┐        IPC        ┌────────────────────────┐
-│  SDK (TS) / CLI  │  ───────────────▶ │  klitkavm-daemon        │
+│  SDK (TS) / CLI  │  ───────────────▶ │  klitka-daemon        │
 │     (Go)         │                  │
 └──────────────────┘                   │  (local service)        │
                                        ├────────────────────────┤
@@ -52,7 +52,7 @@ Contract evolution:
 
 ### Main components
 1) **SDK (TypeScript)**: Exposes the public API used by app developers.
-2) **CLI (Go)**: Uses the same daemon contract directly (no SDK dependency) for `klitkavm exec`, `klitkavm shell`, `klitkavm status`.
+2) **CLI (Go)**: Uses the same daemon contract directly (no SDK dependency) for `klitka exec`, `klitka shell`, `klitka status`.
 3) **Daemon (Go)**: Long‑lived service; manages VM and policy infrastructure.
 4) **Guest Image**: Minimal Linux image with `sandboxd` (virtio‑serial exec service).
 
@@ -61,11 +61,11 @@ Contract evolution:
 ## 2. SDK API Specification
 
 ### Package name
-`@klitkavm/sdk`
+`@klitka/sdk`
 
 ### Public API
 ```ts
-import { Sandbox, type SandboxOptions, type ExecResult } from "@klitkavm/sdk";
+import { Sandbox, type SandboxOptions, type ExecResult } from "@klitka/sdk";
 
 const vm = await Sandbox.start({
   fs: {
@@ -164,17 +164,17 @@ type ExecOptions = {
 ## 3. CLI Specification
 
 ### Binary
-`klitkavm`
+`klitka`
 
 ### Implementation
 - Go binary using the same Protobuf/Connect contract as the daemon.
 
 ### Commands
-- `klitkavm start [--config path]`: start VM and keep alive; returns VM id.
-- `klitkavm exec [--config path] -- <cmd>`: run command, exit with code.
-- `klitkavm shell [--config path]`: interactive shell.
-- `klitkavm status <id>`: show state and uptime.
-- `klitkavm stop <id>`: stop VM.
+- `klitka start [--config path]`: start VM and keep alive; returns VM id.
+- `klitka exec [--config path] -- <cmd>`: run command, exit with code.
+- `klitka shell [--config path]`: interactive shell.
+- `klitka status <id>`: show state and uptime.
+- `klitka stop <id>`: stop VM.
 
 ### CLI Config File
 YAML/JSON accepted. Matches `SandboxOptions` schema.
@@ -184,11 +184,11 @@ YAML/JSON accepted. Matches `SandboxOptions` schema.
 ## 4. Daemon Specification
 
 ### Binary
-`klitkavm-daemon`
+`klitka-daemon`
 
 ### IPC
-- Unix domain socket on Linux: `/var/run/klitkavm.sock`.
-- macOS: `~/Library/Application Support/klitkavm/daemon.sock`.
+- Unix domain socket on Linux: `/var/run/klitka.sock`.
+- macOS: `~/Library/Application Support/klitka/daemon.sock`.
 - Windows (WSL2): daemon exposes a localhost TCP port (e.g. `127.0.0.1:5711`) for the Windows SDK/CLI; inside WSL2 it still uses the Unix socket.
 - Protocol: Protobuf with Connect (HTTP/1.1 or HTTP/2) including streaming for stdout/stderr frames.
 
@@ -267,7 +267,7 @@ BASE_ROOTFS=./rootfs.tar guest/image/build.sh
 
 Example CLI (illustrative):
 ```bash
-klitkavm image build --base ./rootfs.tar --inject --tag my-image:1
+klitka image build --base ./rootfs.tar --inject --tag my-image:1
 ```
 
 ---
@@ -349,7 +349,7 @@ Definition of Done (applies to every slice):
 - [x] Protobuf IDL + Connect server/client.
 - [x] Daemon provides a placeholder exec backend (QEMU + guest image integration pending).
 - [x] CLI `exec` + SDK `start/exec/close`.
-- ✅ Automated test: `e2e_exec_smoke` runs `klitkavm exec -- "uname -a"` and asserts output + exit code.
+- ✅ Automated test: `e2e_exec_smoke` runs `klitka exec -- "uname -a"` and asserts output + exit code.
 - ✅ DoD: SDK test `sdk_exec_smoke` runs `start/exec/close` against the daemon.
 
 ### Slice 2 — Streaming IO + interactive shell
@@ -401,19 +401,19 @@ Definition of Done (applies to every slice):
 **Goal:** Windows support via WSL2.
 - [x] Windows CLI bootstraps WSL2 distro and daemon.
 - [x] TCP IPC to WSL2 daemon from Windows SDK/CLI.
-- ✅ Automated test: `e2e_wsl2_smoke` runs `klitkavm.exe exec -- "uname -a"` on Windows runners.
+- ✅ Automated test: `e2e_wsl2_smoke` runs `klitka.exe exec -- "uname -a"` on Windows runners.
 
 ### Slice 8 — Packaging + smoke tests
 **Goal:** Ship‑ready developer experience.
-- [ ] Homebrew + Linux package artifacts.
-- [ ] Cross‑platform smoke tests (macOS/Linux/Windows‑WSL2).
+- [x] Homebrew + Linux package artifacts.
+- [x] Cross‑platform smoke tests (macOS/Linux/Windows‑WSL2).
 - ✅ Automated test: install + run `exec` + `shell` on all platforms.
 
 ---
 
 ## 11. Repository Layout (Target)
 ```
-klitkavm/
+klitka/
   sdk/
   cli/
   daemon/

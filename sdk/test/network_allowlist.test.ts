@@ -48,7 +48,7 @@ async function waitForDaemon(proc: ReturnType<typeof spawn>, timeoutMs = 15000):
 
 test("sdk network allowlist", async () => {
   const daemonEnv = await buildDaemonEnv();
-  const daemon = spawn("go", ["run", "./cmd/klitkavm-daemon", "--tcp", "127.0.0.1:0"], {
+  const daemon = spawn("go", ["run", "./cmd/klitka-daemon", "--tcp", "127.0.0.1:0"], {
     cwd: repoRoot,
     stdio: "pipe",
     detached: true,
