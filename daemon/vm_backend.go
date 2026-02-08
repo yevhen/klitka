@@ -428,7 +428,7 @@ func buildQemuArgs(assets guestAssets, socketPath string, appendArg string, moun
 		"-netdev",
 		"user,id=net0",
 		"-device",
-		netDeviceArg(),
+		netDeviceArg(machineType),
 		"-chardev",
 		fmt.Sprintf("socket,id=virtiocon0,path=%s,server=off", socketPath),
 		"-device",
@@ -484,6 +484,9 @@ func prepareVmMounts(mounts []*klitkav1.Mount, tempDir string) ([]vmMount, []str
 		socketPath := filepath.Join(tempDir, fmt.Sprintf("virtiofs-%d.sock", idx))
 
 		args := []string{"--socket-path", socketPath, "--shared-dir", hostPath}
+		if os.Geteuid() != 0 {
+			args = append(args, "--sandbox=none")
+		}
 		if mode == klitkav1.MountMode_MOUNT_MODE_RO {
 			args = append(args, "--readonly")
 		}
@@ -605,8 +608,13 @@ func kvmAvailable() bool {
 	return true
 }
 
-func netDeviceArg() string {
-	return "virtio-net-pci,netdev=net0"
+func netDeviceArg(machineType string) string {
+	switch machineType {
+	case "microvm", "virt":
+		return "virtio-net-device,netdev=net0"
+	default:
+		return "virtio-net-pci,netdev=net0"
+	}
 }
 
 func acceptWithTimeout(listener net.Listener, timeout time.Duration) (net.Conn, error) {
