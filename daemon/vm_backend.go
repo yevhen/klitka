@@ -554,7 +554,10 @@ func createMitmMount(tempDir string, mounts []*klitkav1.Mount, caPath string) (*
 
 func selectMachineType() string {
 	if runtime.GOOS == "linux" && runtime.GOARCH == "amd64" {
-		return "microvm"
+		if kvmAvailable() {
+			return "microvm"
+		}
+		return "q35"
 	}
 	if runtime.GOARCH == "arm64" {
 		return "virt"
@@ -565,7 +568,10 @@ func selectMachineType() string {
 func selectAccel() string {
 	switch runtime.GOOS {
 	case "linux":
-		return "kvm"
+		if kvmAvailable() {
+			return "kvm"
+		}
+		return "tcg"
 	case "darwin":
 		return "hvf"
 	default:
@@ -574,10 +580,29 @@ func selectAccel() string {
 }
 
 func selectCPU() string {
-	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
+	switch runtime.GOOS {
+	case "linux":
+		if kvmAvailable() {
+			return "host"
+		}
+		return "max"
+	case "darwin":
 		return "host"
+	default:
+		return "max"
 	}
-	return "max"
+}
+
+func kvmAvailable() bool {
+	if runtime.GOOS != "linux" {
+		return false
+	}
+	fd, err := os.OpenFile("/dev/kvm", os.O_RDWR, 0)
+	if err != nil {
+		return false
+	}
+	_ = fd.Close()
+	return true
 }
 
 func netDeviceArg() string {
