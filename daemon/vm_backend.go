@@ -585,7 +585,7 @@ func selectCPU() string {
 		if kvmAvailable() {
 			return "host"
 		}
-		return "max"
+		return "qemu64"
 	case "darwin":
 		return "host"
 	default:
