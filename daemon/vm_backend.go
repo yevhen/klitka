@@ -85,7 +85,8 @@ func newVMBackend(id string, req *klitkav1.StartVMRequest, env []string, network
 		}
 	}
 
-	mounts, mountArgs, appendArgs, err := prepareVmMounts(mountInputs, tempDir)
+	machineType := selectMachineType()
+	mounts, mountArgs, appendArgs, err := prepareVmMounts(mountInputs, tempDir, machineType)
 	if err != nil {
 		_ = listener.Close()
 		_ = os.RemoveAll(tempDir)
@@ -93,7 +94,7 @@ func newVMBackend(id string, req *klitkav1.StartVMRequest, env []string, network
 	}
 
 	append := buildKernelAppend(assets.append, appendArgs)
-	cmd := exec.Command(qemuPath, buildQemuArgs(assets, socketPath, append, mountArgs)...)
+	cmd := exec.Command(qemuPath, buildQemuArgs(assets, socketPath, append, mountArgs, machineType)...)
 	cmd.Stdout = qemuOutputWriter()
 	cmd.Stderr = qemuOutputWriter()
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -392,7 +393,7 @@ func buildKernelAppend(base string, extras []string) string {
 	return strings.TrimSpace(base + " " + strings.Join(extras, " "))
 }
 
-func buildQemuArgs(assets guestAssets, socketPath string, appendArg string, mountArgs []string) []string {
+func buildQemuArgs(assets guestAssets, socketPath string, appendArg string, mountArgs []string, machineType string) []string {
 	args := []string{
 		"-nodefaults",
 		"-no-reboot",
@@ -411,7 +412,6 @@ func buildQemuArgs(assets guestAssets, socketPath string, appendArg string, moun
 		"stdio",
 	}
 
-	machineType := selectMachineType()
 	if machineType != "" {
 		args = append(args, "-machine", machineType)
 	}
@@ -424,6 +424,8 @@ func buildQemuArgs(assets guestAssets, socketPath string, appendArg string, moun
 		args = append(args, "-cpu", cpu)
 	}
 
+	serialDevice, serialPort := virtioSerialArgs(machineType)
+
 	args = append(args,
 		"-netdev",
 		"user,id=net0",
@@ -432,16 +434,16 @@ func buildQemuArgs(assets guestAssets, socketPath string, appendArg string, moun
 		"-chardev",
 		fmt.Sprintf("socket,id=virtiocon0,path=%s,server=off", socketPath),
 		"-device",
-		"virtio-serial-pci,id=virtio-serial0",
+		serialDevice,
 		"-device",
-		"virtserialport,chardev=virtiocon0,name=virtio-port,bus=virtio-serial0.0",
+		serialPort,
 	)
 
 	args = append(args, mountArgs...)
 	return args
 }
 
-func prepareVmMounts(mounts []*klitkav1.Mount, tempDir string) ([]vmMount, []string, []string, error) {
+func prepareVmMounts(mounts []*klitkav1.Mount, tempDir string, machineType string) ([]vmMount, []string, []string, error) {
 	if len(mounts) == 0 {
 		return nil, nil, nil, nil
 	}
@@ -508,9 +510,13 @@ func prepareVmMounts(mounts []*klitkav1.Mount, tempDir string) ([]vmMount, []str
 			process:    cmd,
 		})
 
+		fsDevice := "vhost-user-fs-pci"
+		if isMmioMachine(machineType) {
+			fsDevice = "vhost-user-fs-device"
+		}
 		qemuArgs = append(qemuArgs,
 			"-chardev", fmt.Sprintf("socket,id=fs%d,path=%s", idx, socketPath),
-			"-device", fmt.Sprintf("vhost-user-fs-pci,chardev=fs%d,tag=%s", idx, tag),
+			"-device", fmt.Sprintf("%s,chardev=fs%d,tag=%s", fsDevice, idx, tag),
 		)
 
 		appendArgs = append(appendArgs, fmt.Sprintf("klitka.mount=%s:%s:%s", tag, guestPath, mountModeString(mode)))
@@ -609,12 +615,21 @@ func kvmAvailable() bool {
 }
 
 func netDeviceArg(machineType string) string {
-	switch machineType {
-	case "microvm", "virt":
+	if isMmioMachine(machineType) {
 		return "virtio-net-device,netdev=net0"
-	default:
-		return "virtio-net-pci,netdev=net0"
 	}
+	return "virtio-net-pci,netdev=net0"
+}
+
+func virtioSerialArgs(machineType string) (string, string) {
+	if isMmioMachine(machineType) {
+		return "virtio-serial-device,id=virtio-serial0", "virtserialport,chardev=virtiocon0,name=virtio-port"
+	}
+	return "virtio-serial-pci,id=virtio-serial0", "virtserialport,chardev=virtiocon0,name=virtio-port,bus=virtio-serial0.0"
+}
+
+func isMmioMachine(machineType string) bool {
+	return machineType == "microvm" || machineType == "virt"
 }
 
 func acceptWithTimeout(listener net.Listener, timeout time.Duration) (net.Conn, error) {
