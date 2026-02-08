@@ -6,6 +6,9 @@ OUT_DIR="${REPO_ROOT}/guest/image/out"
 KERNEL="${OUT_DIR}/vmlinuz"
 INITRD="${OUT_DIR}/initramfs.cpio.gz"
 
+export ZIG_GLOBAL_CACHE_DIR="${ZIG_GLOBAL_CACHE_DIR:-/tmp/klitka-zig-cache}"
+mkdir -p "${ZIG_GLOBAL_CACHE_DIR}"
+
 if [[ -f "${KERNEL}" && -f "${INITRD}" ]]; then
   echo "guest assets already present"
   exit 0
