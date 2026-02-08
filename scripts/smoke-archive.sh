@@ -23,6 +23,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
+if [[ "$(uname -s)" == "Linux" && ! -e /dev/kvm && "${KLITKA_ALLOW_TCG:-}" != "1" ]]; then
+  echo "KVM not available; skipping VM smoke test (set KLITKA_ALLOW_TCG=1 to run with TCG)"
+  exit 0
+fi
+
 tar -xzf "${archive}" -C "${work_dir}"
 root_dir=$(find "${work_dir}" -maxdepth 1 -type d -name "klitka_*" | head -n 1 || true)
 if [[ -z "${root_dir}" ]]; then

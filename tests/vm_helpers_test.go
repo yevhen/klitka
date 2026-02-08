@@ -12,6 +12,9 @@ import (
 
 func requireVMBackend(t *testing.T) {
 	t.Helper()
+	if runtime.GOOS == "linux" && !kvmAvailable() && os.Getenv("KLITKA_ALLOW_TCG") == "" {
+		t.Skip("/dev/kvm not available; set KLITKA_ALLOW_TCG=1 to run with TCG")
+	}
 	kernel, initrd := ensureGuestAssets(t)
 	ensureQemu(t)
 	t.Setenv("KLITKA_BACKEND", "vm")
@@ -36,6 +39,15 @@ func ensureQemu(t *testing.T) {
 	if _, err := exec.LookPath(candidate); err != nil {
 		t.Fatalf("%s not found in PATH", candidate)
 	}
+}
+
+func kvmAvailable() bool {
+	fd, err := os.OpenFile("/dev/kvm", os.O_RDWR, 0)
+	if err != nil {
+		return false
+	}
+	_ = fd.Close()
+	return true
 }
 
 func ensureGuestAssets(t *testing.T) (string, string) {
