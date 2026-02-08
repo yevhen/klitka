@@ -10,8 +10,9 @@ INITRD="${OUT_DIR}/initramfs.cpio.gz"
 export OUT_DIR
 export CACHE_DIR
 
-export ZIG_GLOBAL_CACHE_DIR="${ZIG_GLOBAL_CACHE_DIR:-/tmp/klitka-zig-cache}"
-mkdir -p "${ZIG_GLOBAL_CACHE_DIR}"
+export ZIG_GLOBAL_CACHE_DIR="/tmp/klitka-zig-cache"
+export ZIG_LOCAL_CACHE_DIR="/tmp/klitka-zig-local"
+mkdir -p "${ZIG_GLOBAL_CACHE_DIR}" "${ZIG_LOCAL_CACHE_DIR}"
 
 if [[ -f "${KERNEL}" && -f "${INITRD}" ]]; then
   echo "guest assets already present"
