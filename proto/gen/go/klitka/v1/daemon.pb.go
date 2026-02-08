@@ -1071,28 +1071,28 @@ var File_klitka_v1_daemon_proto protoreflect.FileDescriptor
 
 const file_klitka_v1_daemon_proto_rawDesc = "" +
 	"\n" +
-	"\x18klitka/v1/daemon.proto\x12\vklitka.v1\"\xa1\x01\n" +
-	"\x0eStartVMRequest\x12*\n" +
-	"\x06mounts\x18\x01 \x03(\v2\x12.klitka.v1.MountR\x06mounts\x124\n" +
-	"\anetwork\x18\x02 \x01(\v2\x1a.klitka.v1.NetworkPolicyR\anetwork\x12-\n" +
-	"\asecrets\x18\x03 \x03(\v2\x13.klitka.v1.SecretR\asecrets\"\x81\x01\n" +
+	"\x16klitka/v1/daemon.proto\x12\tklitka.v1\"\x9b\x01\n" +
+	"\x0eStartVMRequest\x12(\n" +
+	"\x06mounts\x18\x01 \x03(\v2\x10.klitka.v1.MountR\x06mounts\x122\n" +
+	"\anetwork\x18\x02 \x01(\v2\x18.klitka.v1.NetworkPolicyR\anetwork\x12+\n" +
+	"\asecrets\x18\x03 \x03(\v2\x11.klitka.v1.SecretR\asecrets\"\x81\x01\n" +
 	"\rNetworkPolicy\x12\x1f\n" +
 	"\vallow_hosts\x18\x01 \x03(\tR\n" +
 	"allowHosts\x12\x1d\n" +
 	"\n" +
 	"deny_hosts\x18\x02 \x03(\tR\tdenyHosts\x120\n" +
-	"\x14block_private_ranges\x18\x03 \x01(\bR\x12blockPrivateRanges\"\x93\x01\n" +
+	"\x14block_private_ranges\x18\x03 \x01(\bR\x12blockPrivateRanges\"\x91\x01\n" +
 	"\x06Secret\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05hosts\x18\x02 \x03(\tR\x05hosts\x12\x14\n" +
 	"\x05value\x18\x03 \x01(\tR\x05value\x12\x16\n" +
-	"\x06header\x18\x04 \x01(\tR\x06header\x121\n" +
-	"\x06format\x18\x05 \x01(\x0e2\x19.klitka.v1.SecretFormatR\x06format\"o\n" +
+	"\x06header\x18\x04 \x01(\tR\x06header\x12/\n" +
+	"\x06format\x18\x05 \x01(\x0e2\x17.klitka.v1.SecretFormatR\x06format\"m\n" +
 	"\x05Mount\x12\x1d\n" +
 	"\n" +
 	"guest_path\x18\x01 \x01(\tR\tguestPath\x12\x1b\n" +
-	"\thost_path\x18\x02 \x01(\tR\bhostPath\x12*\n" +
-	"\x04mode\x18\x03 \x01(\x0e2\x16.klitka.v1.MountModeR\x04mode\"&\n" +
+	"\thost_path\x18\x02 \x01(\tR\bhostPath\x12(\n" +
+	"\x04mode\x18\x03 \x01(\x0e2\x14.klitka.v1.MountModeR\x04mode\"&\n" +
 	"\x0fStartVMResponse\x12\x13\n" +
 	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\"P\n" +
 	"\vExecRequest\x12\x13\n" +
@@ -1102,15 +1102,15 @@ const file_klitka_v1_daemon_proto_rawDesc = "" +
 	"\fExecResponse\x12\x1b\n" +
 	"\texit_code\x18\x01 \x01(\x05R\bexitCode\x12\x16\n" +
 	"\x06stdout\x18\x02 \x01(\fR\x06stdout\x12\x16\n" +
-	"\x06stderr\x18\x03 \x01(\fR\x06stderr\"\xb0\x01\n" +
-	"\x11ExecStreamRequest\x12.\n" +
-	"\x05start\x18\x01 \x01(\v2\x16.klitka.v1.ExecStartH\x00R\x05start\x12.\n" +
-	"\x05input\x18\x02 \x01(\v2\x16.klitka.v1.ExecInputH\x00R\x05input\x120\n" +
-	"\x06resize\x18\x03 \x01(\v2\x16.klitka.v1.PtyResizeH\x00R\x06resizeB\t\n" +
-	"\apayload\"\x7f\n" +
-	"\x12ExecStreamResponse\x121\n" +
-	"\x06output\x18\x01 \x01(\v2\x17.klitka.v1.ExecOutputH\x00R\x06output\x12+\n" +
-	"\x04exit\x18\x02 \x01(\v2\x15.klitka.v1.ExecExitH\x00R\x04exitB\t\n" +
+	"\x06stderr\x18\x03 \x01(\fR\x06stderr\"\xaa\x01\n" +
+	"\x11ExecStreamRequest\x12,\n" +
+	"\x05start\x18\x01 \x01(\v2\x14.klitka.v1.ExecStartH\x00R\x05start\x12,\n" +
+	"\x05input\x18\x02 \x01(\v2\x14.klitka.v1.ExecInputH\x00R\x05input\x12.\n" +
+	"\x06resize\x18\x03 \x01(\v2\x14.klitka.v1.PtyResizeH\x00R\x06resizeB\t\n" +
+	"\apayload\"{\n" +
+	"\x12ExecStreamResponse\x12/\n" +
+	"\x06output\x18\x01 \x01(\v2\x15.klitka.v1.ExecOutputH\x00R\x06output\x12)\n" +
+	"\x04exit\x18\x02 \x01(\v2\x13.klitka.v1.ExecExitH\x00R\x04exitB\t\n" +
 	"\apayload\"`\n" +
 	"\tExecStart\x12\x13\n" +
 	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\x12\x18\n" +
@@ -1139,13 +1139,13 @@ const file_klitka_v1_daemon_proto_rawDesc = "" +
 	"\tMountMode\x12\x1a\n" +
 	"\x16MOUNT_MODE_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rMOUNT_MODE_RO\x10\x01\x12\x11\n" +
-	"\rMOUNT_MODE_RW\x10\x022\xa8\x02\n" +
-	"\rDaemonService\x12D\n" +
-	"\aStartVM\x12\x1b.klitka.v1.StartVMRequest\x1a\x1c.klitka.v1.StartVMResponse\x12;\n" +
-	"\x04Exec\x12\x18.klitka.v1.ExecRequest\x1a\x19.klitka.v1.ExecResponse\x12Q\n" +
+	"\rMOUNT_MODE_RW\x10\x022\x98\x02\n" +
+	"\rDaemonService\x12@\n" +
+	"\aStartVM\x12\x19.klitka.v1.StartVMRequest\x1a\x1a.klitka.v1.StartVMResponse\x127\n" +
+	"\x04Exec\x12\x16.klitka.v1.ExecRequest\x1a\x17.klitka.v1.ExecResponse\x12M\n" +
 	"\n" +
-	"ExecStream\x12\x1e.klitka.v1.ExecStreamRequest\x1a\x1f.klitka.v1.ExecStreamResponse(\x010\x01\x12A\n" +
-	"\x06StopVM\x12\x1a.klitka.v1.StopVMRequest\x1a\x1b.klitka.v1.StopVMResponseBBZ@github.com/yevhen/klitka/proto/gen/go/klitka/v1;klitkav1b\x06proto3"
+	"ExecStream\x12\x1c.klitka.v1.ExecStreamRequest\x1a\x1d.klitka.v1.ExecStreamResponse(\x010\x01\x12=\n" +
+	"\x06StopVM\x12\x18.klitka.v1.StopVMRequest\x1a\x19.klitka.v1.StopVMResponseB:Z8github.com/yevhen/klitka/proto/gen/go/klitka/v1;klitkav1b\x06proto3"
 
 var (
 	file_klitka_v1_daemon_proto_rawDescOnce sync.Once
