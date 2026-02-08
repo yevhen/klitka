@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package klitka.v1;
 
-option go_package = "github.com/klitka/klitka/proto/gen/go/klitka/v1;klitkav1";
+option go_package = "github.com/yevhen/klitka/proto/gen/go/klitka/v1;klitkav1";
 
 // DaemonService is the minimal contract for slice 1.
 // New methods are added only when required by the next slice.

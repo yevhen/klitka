@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	klitkav1 "github.com/klitka/klitka/proto/gen/go/klitka/v1"
+	klitkav1 "github.com/yevhen/klitka/proto/gen/go/klitka/v1"
 )
 
 const guestProxyHost = "10.0.2.2"

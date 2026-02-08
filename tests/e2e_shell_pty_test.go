@@ -13,8 +13,8 @@ import (
 
 	"net/http"
 
-	"github.com/klitka/klitka/daemon"
-	klitkav1connect "github.com/klitka/klitka/proto/gen/go/klitka/v1/klitkav1connect"
+	"github.com/yevhen/klitka/daemon"
+	klitkav1connect "github.com/yevhen/klitka/proto/gen/go/klitka/v1/klitkav1connect"
 )
 
 func TestE2EShellPTY(t *testing.T) {

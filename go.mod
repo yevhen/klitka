@@ -1,4 +1,4 @@
-module github.com/klitka/klitka
+module github.com/yevhen/klitka
 
 go 1.22
 

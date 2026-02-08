@@ -17,7 +17,7 @@ import (
 
 	"connectrpc.com/connect"
 
-	klitkav1 "github.com/klitka/klitka/proto/gen/go/klitka/v1"
+	klitkav1 "github.com/yevhen/klitka/proto/gen/go/klitka/v1"
 )
 
 type vmBackend struct {

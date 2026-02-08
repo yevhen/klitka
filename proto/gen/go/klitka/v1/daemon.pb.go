@@ -1145,7 +1145,7 @@ const file_klitka_v1_daemon_proto_rawDesc = "" +
 	"\x04Exec\x12\x18.klitka.v1.ExecRequest\x1a\x19.klitka.v1.ExecResponse\x12Q\n" +
 	"\n" +
 	"ExecStream\x12\x1e.klitka.v1.ExecStreamRequest\x1a\x1f.klitka.v1.ExecStreamResponse(\x010\x01\x12A\n" +
-	"\x06StopVM\x12\x1a.klitka.v1.StopVMRequest\x1a\x1b.klitka.v1.StopVMResponseBBZ@github.com/klitka/klitka/proto/gen/go/klitka/v1;klitkav1b\x06proto3"
+	"\x06StopVM\x12\x1a.klitka.v1.StopVMRequest\x1a\x1b.klitka.v1.StopVMResponseBBZ@github.com/yevhen/klitka/proto/gen/go/klitka/v1;klitkav1b\x06proto3"
 
 var (
 	file_klitka_v1_daemon_proto_rawDescOnce sync.Once

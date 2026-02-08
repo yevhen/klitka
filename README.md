@@ -6,7 +6,7 @@ Local sandbox runtime for running LLM workloads inside a microVM with policy‑c
 
 ### Homebrew (macOS/Linux)
 ```bash
-brew install KlitkaAI/tap/klitka
+brew install yevhen/tap/klitka
 ```
 
 ### Linux (tar.gz / deb / rpm)

@@ -8,7 +8,7 @@ import (
 	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"
-	v1 "github.com/klitka/klitka/proto/gen/go/klitka/v1"
+	v1 "github.com/yevhen/klitka/proto/gen/go/klitka/v1"
 	http "net/http"
 	strings "strings"
 )

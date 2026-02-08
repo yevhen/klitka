@@ -69,9 +69,9 @@ nfpms:
       - rpm
     section: utils
     priority: optional
-    maintainer: KlitkaAI
+    maintainer: yevhen
     description: Local sandbox runtime for running LLM workloads inside a microVM.
-    homepage: https://github.com/KlitkaAI/klitka
+    homepage: https://github.com/yevhen/klitka
     contents:
       - src: guest/image/out/vmlinuz
         dst: /usr/share/klitka/guest/vmlinuz
@@ -81,9 +81,9 @@ nfpms:
 brews:
   - name: klitka
     description: Local sandbox runtime for running LLM workloads inside a microVM.
-    homepage: https://github.com/KlitkaAI/klitka
+    homepage: https://github.com/yevhen/klitka
     repository:
-      owner: KlitkaAI
+      owner: yevhen
       name: homebrew-tap
     install: |
       bin.install "klitka"
