@@ -76,7 +76,7 @@ VM backend:
 - `KLITKA_GUEST_INITRD`: path to `initramfs.cpio.gz`.
 - `KLITKA_GUEST_APPEND`: extra kernel append args.
 - `KLITKA_QEMU`: override QEMU binary path.
-- `KLITKA_QEMU_MACHINE`: override QEMU machine type (e.g. `q35`, `microvm`).
+- `KLITKA_QEMU_MACHINE`: override QEMU machine type (default: `microvm` on Linux+KVM, fallback: `q35`).
 - `KLITKA_VIRTIOFSD`: override virtiofsd path.
 - `KLITKA_TMPDIR`: base temp dir for VM runtime data.
 - `KLITKA_DEBUG_QEMU`: non-empty to log QEMU stdout/stderr.

@@ -568,6 +568,12 @@ func selectMachineType() string {
 	if runtime.GOARCH == "arm64" {
 		return "virt"
 	}
+	if runtime.GOOS == "linux" && runtime.GOARCH == "amd64" {
+		if kvmAvailable() {
+			return "microvm"
+		}
+		return "q35"
+	}
 	return "q35"
 }
 
