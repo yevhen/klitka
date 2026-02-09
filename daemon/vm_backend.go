@@ -562,11 +562,8 @@ func createMitmMount(tempDir string, mounts []*klitkav1.Mount, caPath string) (*
 }
 
 func selectMachineType() string {
-	if runtime.GOOS == "linux" && runtime.GOARCH == "amd64" {
-		if kvmAvailable() {
-			return "microvm"
-		}
-		return "q35"
+	if override := strings.TrimSpace(os.Getenv("KLITKA_QEMU_MACHINE")); override != "" {
+		return override
 	}
 	if runtime.GOARCH == "arm64" {
 		return "virt"
