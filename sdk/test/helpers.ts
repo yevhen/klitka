@@ -41,6 +41,9 @@ export async function ensureQemu(): Promise<void> {
 }
 
 export async function ensureVirtiofsd(): Promise<boolean> {
+  if (process.env.CI && !process.env.KLITKA_ALLOW_VIRTIOFS) {
+    return false;
+  }
   try {
     await ensureCommand("virtiofsd");
     return true;

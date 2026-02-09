@@ -25,6 +25,9 @@ func requireVMBackend(t *testing.T) {
 
 func requireVirtiofsd(t *testing.T) {
 	t.Helper()
+	if os.Getenv("CI") != "" && os.Getenv("KLITKA_ALLOW_VIRTIOFS") == "" {
+		t.Skip("virtiofsd tests disabled in CI; set KLITKA_ALLOW_VIRTIOFS=1 to enable")
+	}
 	if _, err := exec.LookPath("virtiofsd"); err != nil {
 		t.Skip("virtiofsd not found in PATH")
 	}

@@ -19,6 +19,7 @@ import (
 func TestE2ERoMount(t *testing.T) {
 	requireVMBackend(t)
 	requireVirtiofsd(t)
+	requireVirtiofsd(t)
 	service := daemon.NewService()
 	path, handler := klitkav1connect.NewDaemonServiceHandler(service)
 	mux := http.NewServeMux()

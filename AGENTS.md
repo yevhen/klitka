@@ -98,7 +98,7 @@ make test-nix
 ```
 Notes:
 - VM tests require QEMU + guest assets (built via `guest/image/build.sh`).
-- Mount tests require `virtiofsd` (skipped if not available).
+- Mount tests require `virtiofsd` (skipped in CI unless `KLITKA_ALLOW_VIRTIOFS=1`).
 
 ## Code style
 - Go: run `gofmt` on modified `.go` files.
