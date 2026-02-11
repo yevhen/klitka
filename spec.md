@@ -310,6 +310,11 @@ klitka image build --base ./rootfs.tar --inject --tag my-image:1
 - Network: TAP inside WSL2 + host proxy/DNS guard, same policy flow as Linux.
 - Filesystem mounts map Windows paths into WSL2 mount points (e.g. `/mnt/c/...`).
 
+Filesystem backend selection:
+- Default backend is **FS-RPC** for macOS + CI to ensure parity.
+- Linux uses `virtiofsd` when available (performance), else FS-RPC.
+- Override via `KLITKA_FS_BACKEND=fsrpc|virtiofs|auto`.
+
 ---
 
 ## 8. Security Considerations
@@ -408,6 +413,36 @@ Definition of Done (applies to every slice):
 - [x] Homebrew + Linux package artifacts.
 - [x] Cross‑platform smoke tests (macOS/Linux/Windows‑WSL2).
 - ✅ Automated test: install + run `exec` + `shell` on all platforms.
+
+### FS-RPC migration (post-slice plan)
+**Goal:** Make FS-RPC the default cross-platform filesystem backend (see `fs-rpc.md`).
+
+PR slice FS-0 — Backend selector + wiring (no behavior change)
+- [x] Add `KLITKA_FS_BACKEND` handling with `auto|fsrpc|virtiofs`.
+- [x] Add virtio-serial port naming for per-mount FS-RPC channels (`virtio-fs-<idx>`).
+- [x] Update guest init to launch `sandboxfs` when `klitka.fsrpc=` specs exist.
+- ✅ DoD: existing mount tests still pass (virtiofsd path), no RPC traffic required.
+
+PR slice FS-1 — Read-only FS-RPC
+- [x] Implement host FS-RPC server (CBOR framing, per-mount root).
+- [x] QEMU adds FS-RPC virtio-serial ports when backend = `fsrpc`.
+- [x] Guest init starts `sandboxfs` per mount with `--rpc-path`.
+- ✅ DoD: `e2e_ro_mount` + SDK RO mount pass on macOS/Linux without `virtiofsd`.
+
+PR slice FS-2 — Read/write FS-RPC
+- [x] Add mutating ops (create/write/rename/unlink/truncate) with RO enforcement.
+- [x] Handle file handles, offsets, and open flags safely.
+- ✅ DoD: `e2e_rw_mount` + SDK RW mount tests pass on macOS/Linux.
+
+PR slice FS-3 — Stability & semantics
+- [x] Close all host FDs on release/VM shutdown; add inode/handle GC.
+- [x] Add structured error logging for FS-RPC failures.
+- ✅ DoD: stress test (create/delete tree) passes; no leaked FDs.
+
+PR slice FS-4 — Default switch + virtiofs fallback
+- [x] Default `auto` selects FS-RPC on macOS/CI; virtiofs on Linux if available.
+- [x] Keep `virtiofs` as opt-in perf path.
+- ✅ DoD: docs updated; CI mount tests run via FS-RPC by default.
 
 ---
 

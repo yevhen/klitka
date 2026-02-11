@@ -6,7 +6,6 @@ import (
 	"context"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -15,8 +14,10 @@ import (
 	klitkav1connect "github.com/yevhen/klitka/proto/gen/go/klitka/v1/klitkav1connect"
 )
 
-func TestE2ERwMount(t *testing.T) {
+func TestE2ERwMountFSRPC(t *testing.T) {
 	requireVMBackend(t)
+	t.Setenv("KLITKA_FS_BACKEND", "fsrpc")
+
 	service := daemon.NewService()
 	path, handler := klitkav1connect.NewDaemonServiceHandler(service)
 	mux := http.NewServeMux()
@@ -43,29 +44,27 @@ func TestE2ERwMount(t *testing.T) {
 		t.Fatalf("failed to write ready file: %v", err)
 	}
 
-	fileName := "rw.txt"
-	writeOutput, err := runCLIExecRW(ctx, addr, []string{"--mount", mountFlag, "--", "sh", "-c", "for i in $(seq 1 20); do [ -f /mnt/host/.ready ] && break; sleep 0.1; done; touch /mnt/host/rw.txt"})
+	var output []byte
+	output, err = runCLIExec(ctx, addr, []string{"--mount", mountFlag, "--", "sh", "-c", "for i in $(seq 1 20); do [ -f /mnt/host/.ready ] && break; sleep 0.1; done; mkdir -p /mnt/host/work && printf hello >/mnt/host/work/file.txt"})
 	if err != nil {
-		t.Fatalf("rw write failed: %v (output: %s)", err, writeOutput)
+		t.Fatalf("write exec failed: %v (output: %s)", err, output)
 	}
 
-	hostFile := filepath.Join(tempDir, fileName)
-	if _, err := os.Stat(hostFile); err != nil {
+	hostFile := filepath.Join(tempDir, "work", "file.txt")
+	data, err := os.ReadFile(hostFile)
+	if err != nil {
 		t.Fatalf("expected host file to exist: %v", err)
 	}
-}
-
-func runCLIExecRW(ctx context.Context, addr string, args []string) ([]byte, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, err
+	if string(data) != "hello" {
+		t.Fatalf("unexpected host file content: %q", string(data))
 	}
-	repoRoot := filepath.Dir(wd)
-	cliPath := filepath.Join(repoRoot, "cli")
 
-	cmdArgs := append([]string{"run", cliPath, "exec"}, args...)
-	cmd := exec.CommandContext(ctx, "go", cmdArgs...)
-	cmd.Env = append(os.Environ(), "KLITKA_TCP="+addr)
-	cmd.Dir = repoRoot
-	return cmd.CombinedOutput()
+	output, err = runCLIExec(ctx, addr, []string{"--mount", mountFlag, "--", "sh", "-c", "for i in $(seq 1 20); do [ -f /mnt/host/.ready ] && break; sleep 0.1; done; rm /mnt/host/work/file.txt"})
+	if err != nil {
+		t.Fatalf("unlink exec failed: %v (output: %s)", err, output)
+	}
+
+	if _, err := os.Stat(filepath.Join(tempDir, "work", "file.txt")); !os.IsNotExist(err) {
+		t.Fatalf("expected file to be removed, stat err=%v", err)
+	}
 }

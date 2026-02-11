@@ -21,17 +21,18 @@ import (
 )
 
 type vmBackend struct {
-	id         string
-	assets     guestAssets
-	qemu       *exec.Cmd
-	conn       net.Conn
-	client     *virtioClient
-	tempDir    string
-	socketPath string
-	mounts     []vmMount
-	env        []string
-	waitCh     chan error
-	closeOnce  sync.Once
+	id           string
+	assets       guestAssets
+	qemu         *exec.Cmd
+	conn         net.Conn
+	client       *virtioClient
+	tempDir      string
+	socketPath   string
+	mounts       []vmMount
+	fsrpcServers []*fsrpcServer
+	env          []string
+	waitCh       chan error
+	closeOnce    sync.Once
 }
 
 type guestAssets struct {
@@ -46,6 +47,7 @@ type vmMount struct {
 	guestPath  string
 	socketPath string
 	mode       klitkav1.MountMode
+	rpc        bool
 	process    *exec.Cmd
 }
 
@@ -86,7 +88,13 @@ func newVMBackend(id string, req *klitkav1.StartVMRequest, env []string, network
 	}
 
 	machineType := selectMachineType()
-	mounts, mountArgs, appendArgs, err := prepareVmMounts(mountInputs, tempDir, machineType)
+	fsBackend, err := fsBackendFromEnv()
+	if err != nil {
+		_ = listener.Close()
+		_ = os.RemoveAll(tempDir)
+		return nil, err
+	}
+	mounts, mountArgs, appendArgs, err := prepareVmMounts(mountInputs, tempDir, machineType, fsBackend)
 	if err != nil {
 		_ = listener.Close()
 		_ = os.RemoveAll(tempDir)
@@ -115,6 +123,14 @@ func newVMBackend(id string, req *klitkav1.StartVMRequest, env []string, network
 		_ = backend.Close()
 		return nil, err
 	}
+
+	fsrpcServers, err := startFSRPCServers(mounts, 10*time.Second)
+	if err != nil {
+		_ = listener.Close()
+		_ = backend.Close()
+		return nil, err
+	}
+	backend.fsrpcServers = fsrpcServers
 
 	go func() {
 		backend.waitCh <- cmd.Wait()
@@ -242,13 +258,21 @@ func (backend *vmBackend) Close() error {
 		if backend.conn != nil {
 			_ = backend.conn.Close()
 		}
+		for _, fsrpc := range backend.fsrpcServers {
+			if fsrpc != nil {
+				_ = fsrpc.Close()
+			}
+		}
 		if backend.qemu != nil && backend.qemu.Process != nil {
 			_ = backend.qemu.Process.Signal(syscall.SIGTERM)
 			select {
 			case <-backend.waitCh:
 			case <-time.After(2 * time.Second):
 				_ = backend.qemu.Process.Kill()
-				<-backend.waitCh
+				select {
+				case <-backend.waitCh:
+				case <-time.After(2 * time.Second):
+				}
 			}
 		}
 		for _, mount := range backend.mounts {
@@ -443,10 +467,22 @@ func buildQemuArgs(assets guestAssets, socketPath string, appendArg string, moun
 	return args
 }
 
-func prepareVmMounts(mounts []*klitkav1.Mount, tempDir string, machineType string) ([]vmMount, []string, []string, error) {
+func prepareVmMounts(mounts []*klitkav1.Mount, tempDir string, machineType string, backend fsBackend) ([]vmMount, []string, []string, error) {
 	if len(mounts) == 0 {
 		return nil, nil, nil, nil
 	}
+
+	switch effectiveFSBackend(backend) {
+	case fsBackendVirtioFS:
+		return prepareVirtioFSMounts(mounts, tempDir, machineType)
+	case fsBackendFSRPC:
+		return prepareFSRPCMounts(mounts, tempDir, machineType)
+	default:
+		return nil, nil, nil, fmt.Errorf("unsupported filesystem backend: %q", backend)
+	}
+}
+
+func prepareVirtioFSMounts(mounts []*klitkav1.Mount, tempDir string, machineType string) ([]vmMount, []string, []string, error) {
 	virtiofsdPath, err := resolveVirtiofsdPath()
 	if err != nil {
 		return nil, nil, nil, err
@@ -465,21 +501,10 @@ func prepareVmMounts(mounts []*klitkav1.Mount, tempDir string, machineType strin
 	}
 
 	for idx, mount := range mounts {
-		guestPath := filepath.Clean(mount.GetGuestPath())
-		if guestPath == "." || guestPath == "" || !filepath.IsAbs(guestPath) {
-			return nil, nil, nil, fmt.Errorf("invalid guest path: %q", mount.GetGuestPath())
-		}
-		hostPath := filepath.Clean(mount.GetHostPath())
-		if hostPath == "." || hostPath == "" {
-			return nil, nil, nil, fmt.Errorf("invalid host path: %q", mount.GetHostPath())
-		}
-		if _, err := os.Stat(hostPath); err != nil {
-			return nil, nil, nil, fmt.Errorf("host path not found: %s", hostPath)
-		}
-
-		mode := mount.GetMode()
-		if mode == klitkav1.MountMode_MOUNT_MODE_UNSPECIFIED {
-			mode = klitkav1.MountMode_MOUNT_MODE_RO
+		guestPath, hostPath, mode, err := normalizeMountSpec(mount)
+		if err != nil {
+			cleanup()
+			return nil, nil, nil, err
 		}
 
 		tag := fmt.Sprintf("klitka%d", idx)
@@ -523,6 +548,61 @@ func prepareVmMounts(mounts []*klitkav1.Mount, tempDir string, machineType strin
 	}
 
 	return out, qemuArgs, appendArgs, nil
+}
+
+func prepareFSRPCMounts(mounts []*klitkav1.Mount, tempDir string, machineType string) ([]vmMount, []string, []string, error) {
+	out := make([]vmMount, 0, len(mounts))
+	qemuArgs := make([]string, 0, len(mounts)*4)
+	appendArgs := make([]string, 0, len(mounts))
+
+	for idx, mount := range mounts {
+		guestPath, hostPath, mode, err := normalizeMountSpec(mount)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		portName := fsrpcPortName(idx)
+		socketPath := filepath.Join(tempDir, fmt.Sprintf("fsrpc-%d.sock", idx))
+		charDevID := fmt.Sprintf("fsrpc%d", idx)
+
+		qemuArgs = append(qemuArgs,
+			"-chardev", fmt.Sprintf("socket,id=%s,path=%s,server=on,wait=off", charDevID, socketPath),
+			"-device", virtioSerialPortArg(machineType, charDevID, portName),
+		)
+		appendArgs = append(appendArgs, fmt.Sprintf("klitka.fsrpc=%s:%s:%s", portName, guestPath, mountModeString(mode)))
+
+		out = append(out, vmMount{
+			tag:        portName,
+			hostPath:   hostPath,
+			guestPath:  guestPath,
+			socketPath: socketPath,
+			mode:       mode,
+			rpc:        true,
+		})
+	}
+
+	return out, qemuArgs, appendArgs, nil
+}
+
+func normalizeMountSpec(mount *klitkav1.Mount) (guestPath string, hostPath string, mode klitkav1.MountMode, err error) {
+	guestPath = filepath.Clean(mount.GetGuestPath())
+	if guestPath == "." || guestPath == "" || !filepath.IsAbs(guestPath) {
+		return "", "", 0, fmt.Errorf("invalid guest path: %q", mount.GetGuestPath())
+	}
+
+	hostPath = filepath.Clean(mount.GetHostPath())
+	if hostPath == "." || hostPath == "" {
+		return "", "", 0, fmt.Errorf("invalid host path: %q", mount.GetHostPath())
+	}
+	if _, err := os.Stat(hostPath); err != nil {
+		return "", "", 0, fmt.Errorf("host path not found: %s", hostPath)
+	}
+
+	mode = mount.GetMode()
+	if mode == klitkav1.MountMode_MOUNT_MODE_UNSPECIFIED {
+		mode = klitkav1.MountMode_MOUNT_MODE_RO
+	}
+	return guestPath, hostPath, mode, nil
 }
 
 func mountModeString(mode klitkav1.MountMode) string {
@@ -629,6 +709,13 @@ func virtioSerialArgs(machineType string) (string, string) {
 		return "virtio-serial-device,id=virtio-serial0", "virtserialport,chardev=virtiocon0,name=virtio-port"
 	}
 	return "virtio-serial-pci,id=virtio-serial0", "virtserialport,chardev=virtiocon0,name=virtio-port,bus=virtio-serial0.0"
+}
+
+func virtioSerialPortArg(machineType, chardevID, name string) string {
+	if isMmioMachine(machineType) {
+		return fmt.Sprintf("virtserialport,chardev=%s,name=%s", chardevID, name)
+	}
+	return fmt.Sprintf("virtserialport,chardev=%s,name=%s,bus=virtio-serial0.0", chardevID, name)
 }
 
 func isMmioMachine(machineType string) bool {

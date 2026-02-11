@@ -6,7 +6,6 @@ import (
 	"context"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,8 +15,10 @@ import (
 	klitkav1connect "github.com/yevhen/klitka/proto/gen/go/klitka/v1/klitkav1connect"
 )
 
-func TestE2ERoMount(t *testing.T) {
+func TestE2ERoMountFSRPC(t *testing.T) {
 	requireVMBackend(t)
+	t.Setenv("KLITKA_FS_BACKEND", "fsrpc")
+
 	service := daemon.NewService()
 	path, handler := klitkav1connect.NewDaemonServiceHandler(service)
 	mux := http.NewServeMux()
@@ -44,7 +45,14 @@ func TestE2ERoMount(t *testing.T) {
 	guestPath := "/mnt/host"
 	mountFlag := tempDir + ":" + guestPath + ":ro"
 
-	readOutput, err := runCLIExec(ctx, addr, []string{"--mount", mountFlag, "--", "sh", "-c", "for i in $(seq 1 20); do [ -f /mnt/host/hello.txt ] && break; sleep 0.1; done; cat /mnt/host/hello.txt"})
+	var readOutput []byte
+	for i := 0; i < 20; i++ {
+		readOutput, err = runCLIExec(ctx, addr, []string{"--mount", mountFlag, "--", "cat", filepath.Join(guestPath, "hello.txt")})
+		if err == nil {
+			break
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
 	if err != nil {
 		t.Fatalf("read exec failed: %v (output: %s)", err, readOutput)
 	}
@@ -56,19 +64,4 @@ func TestE2ERoMount(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected write to fail (output: %s)", writeOutput)
 	}
-}
-
-func runCLIExec(ctx context.Context, addr string, args []string) ([]byte, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-	repoRoot := filepath.Dir(wd)
-	cliPath := filepath.Join(repoRoot, "cli")
-
-	cmdArgs := append([]string{"run", cliPath, "exec"}, args...)
-	cmd := exec.CommandContext(ctx, "go", cmdArgs...)
-	cmd.Env = append(os.Environ(), "KLITKA_TCP="+addr)
-	cmd.Dir = repoRoot
-	return cmd.CombinedOutput()
 }

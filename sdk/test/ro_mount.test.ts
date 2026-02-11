@@ -6,7 +6,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 
 import { Sandbox } from "../src/index.ts";
-import { buildDaemonEnv, ensureVirtiofsd, repoRoot } from "./helpers.ts";
+import { buildDaemonEnv, repoRoot } from "./helpers.ts";
 
 async function waitForDaemon(proc: ReturnType<typeof spawn>, timeoutMs = 15000): Promise<number> {
   const deadline = Date.now() + timeoutMs;
@@ -49,11 +49,7 @@ async function waitForDaemon(proc: ReturnType<typeof spawn>, timeoutMs = 15000):
   });
 }
 
-test("sdk ro mount", async (t) => {
-  if (!await ensureVirtiofsd()) {
-    t.skip("virtiofsd not available");
-    return;
-  }
+test("sdk ro mount", async () => {
   const daemonEnv = await buildDaemonEnv();
   const daemon = spawn("go", ["run", "./cmd/klitka-daemon", "--tcp", "127.0.0.1:0"], {
     cwd: repoRoot,
@@ -76,11 +72,19 @@ test("sdk ro mount", async (t) => {
       },
     });
 
-    const readResult = await sandbox.exec(["cat", "/mnt/host/hello.txt"]);
+    const readResult = await sandbox.exec([
+      "sh",
+      "-c",
+      "for i in $(seq 1 20); do [ -f /mnt/host/hello.txt ] && break; sleep 0.1; done; cat /mnt/host/hello.txt",
+    ]);
     const readOutput = new TextDecoder().decode(readResult.stdout);
     assert.ok(readOutput.includes("hello"));
 
-    const writeResult = await sandbox.exec(["touch", "/mnt/host/new.txt"]);
+    const writeResult = await sandbox.exec([
+      "sh",
+      "-c",
+      "for i in $(seq 1 20); do [ -f /mnt/host/hello.txt ] && break; sleep 0.1; done; touch /mnt/host/new.txt",
+    ]);
     assert.notEqual(writeResult.exitCode, 0);
 
     await sandbox.close();

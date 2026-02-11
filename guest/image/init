@@ -123,11 +123,15 @@ if modprobe virtiofs > /dev/null 2>&1 || modprobe virtio_fs > /dev/null 2>&1; th
 fi
 
 mount_specs=""
+fsrpc_specs=""
 if [ -r /proc/cmdline ]; then
   for arg in $(cat /proc/cmdline); do
     case "${arg}" in
       klitka.mount=*)
         mount_specs="${mount_specs} ${arg#klitka.mount=}"
+        ;;
+      klitka.fsrpc=*)
+        fsrpc_specs="${fsrpc_specs} ${arg#klitka.fsrpc=}"
         ;;
     esac
   done
@@ -158,9 +162,37 @@ mount_virtiofs() {
   mount -t virtiofs ${opts} "${tag}" "${path}" || log "[init] virtiofs mount failed for ${tag}"
 }
 
+mount_fsrpc() {
+  spec="$1"
+  port="${spec%%:*}"
+  rest="${spec#*:}"
+  path="${rest%%:*}"
+  mode="${rest#*:}"
+  if [ "${rest}" = "${path}" ]; then
+    mode="rw"
+  fi
+
+  if [ -z "${port}" ] || [ -z "${path}" ]; then
+    log "[init] invalid fsrpc spec: ${spec}"
+    return
+  fi
+
+  mkdir -p "${path}"
+  rpc_path="/dev/virtio-ports/${port}"
+
+  log "[init] starting sandboxfs ${port} -> ${path} (${mode})"
+  /usr/bin/sandboxfs --mount "${path}" --rpc-path "${rpc_path}" > "${CONSOLE:-/dev/null}" 2>&1 &
+}
+
 if [ -n "${mount_specs}" ]; then
   for spec in ${mount_specs}; do
     mount_virtiofs "${spec}"
+  done
+fi
+
+if [ -n "${fsrpc_specs}" ]; then
+  for spec in ${fsrpc_specs}; do
+    mount_fsrpc "${spec}"
   done
 fi
 

@@ -77,6 +77,7 @@ VM backend:
 - `KLITKA_GUEST_APPEND`: extra kernel append args.
 - `KLITKA_QEMU`: override QEMU binary path.
 - `KLITKA_QEMU_MACHINE`: override QEMU machine type (default: `microvm` on Linux+KVM, fallback: `q35`).
+- `KLITKA_FS_BACKEND`: `auto` | `fsrpc` | `virtiofs` (default `auto`: CI/macOS→FS-RPC, Linux→virtiofs when available, else FS-RPC).
 - `KLITKA_VIRTIOFSD`: override virtiofsd path.
 - `KLITKA_TMPDIR`: base temp dir for VM runtime data.
 - `KLITKA_DEBUG_QEMU`: non-empty to log QEMU stdout/stderr.
@@ -93,11 +94,18 @@ make test-go
 make test-sdk
 # Full suite (build guest + tests)
 make test
-# Run inside nix develop
+# Run inside nix develop (preferred/default for agents)
 make test-nix
 ```
+Agent rule:
+- **Always run test commands via Nix dev shell** (`make test-nix` or `nix develop --command ...`) unless explicitly told otherwise.
+- **Never run tests directly on host** (`go test ...`, `npm test`, etc.) outside Nix. Use `nix develop --command ...` for every test invocation.
+- Do not assume host toolchain paths (QEMU/virtiofsd/zig/node/go) are available outside Nix.
+- If `nix` is unavailable, report it immediately and ask to run `./scripts/bootstrap.sh` (or provide an alternative explicitly).
+
 Notes:
 - VM tests require QEMU + guest assets (built via `guest/image/build.sh`).
+- If guest files change (`guest/image/init`, `guest/src/*`), rebuild guest assets before VM tests: `nix develop --command ./guest/image/build.sh`.
 - Mount tests require `virtiofsd` (skipped in CI unless `KLITKA_ALLOW_VIRTIOFS=1`).
 
 ## Code style

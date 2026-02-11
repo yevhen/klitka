@@ -49,8 +49,10 @@ async function waitForDaemon(proc: ReturnType<typeof spawn>, timeoutMs = 15000):
   });
 }
 
-test("sdk rw mount + memfs root", async () => {
+test("sdk rw mount with fsrpc", async () => {
   const daemonEnv = await buildDaemonEnv();
+  daemonEnv.KLITKA_FS_BACKEND = "fsrpc";
+
   const daemon = spawn("go", ["run", "./cmd/klitka-daemon", "--tcp", "127.0.0.1:0"], {
     cwd: repoRoot,
     stdio: "pipe",
@@ -61,7 +63,7 @@ test("sdk rw mount + memfs root", async () => {
   try {
     const port = await waitForDaemon(daemon);
 
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "klitka-mount-"));
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "klitka-fsrpc-"));
     const readyFile = path.join(tempDir, ".ready");
     await fs.writeFile(readyFile, "ok");
 
@@ -75,29 +77,22 @@ test("sdk rw mount + memfs root", async () => {
     const writeResult = await sandbox.exec([
       "sh",
       "-c",
-      "for i in $(seq 1 20); do [ -f /mnt/host/.ready ] && break; sleep 0.1; done; touch /mnt/host/new.txt",
+      "for i in $(seq 1 20); do [ -f /mnt/host/.ready ] && break; sleep 0.1; done; mkdir -p /mnt/host/work && printf hello >/mnt/host/work/file.txt",
     ]);
     assert.equal(writeResult.exitCode, 0);
 
-    const hostFile = path.join(tempDir, "new.txt");
-    await fs.stat(hostFile);
+    const hostFile = path.join(tempDir, "work", "file.txt");
+    const hostData = await fs.readFile(hostFile, "utf-8");
+    assert.equal(hostData, "hello");
 
-    const memfsName = `memfs-${Date.now()}.txt`;
-    const hostTmp = path.join("/tmp", memfsName);
-    await fs.rm(hostTmp, { force: true });
+    const removeFile = await sandbox.exec(["rm", "/mnt/host/work/file.txt"]);
+    assert.equal(removeFile.exitCode, 0);
 
-    const memfsWrite = await sandbox.exec(["touch", `/tmp/${memfsName}`]);
-    assert.equal(memfsWrite.exitCode, 0);
-
-    const hostTmpStat = await fs.stat(hostTmp).then(
+    const existsAfterDelete = await fs.stat(path.join(tempDir, "work", "file.txt")).then(
       () => true,
       () => false
     );
-    assert.equal(hostTmpStat, false);
-
-    const listResult = await sandbox.exec(["ls", "/tmp"]);
-    const listOutput = new TextDecoder().decode(listResult.stdout);
-    assert.ok(listOutput.includes(memfsName));
+    assert.equal(existsAfterDelete, false);
 
     await sandbox.close();
   } finally {

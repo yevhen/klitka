@@ -23,6 +23,7 @@ const FuseOp = struct {
     pub const READDIR: u32 = 28;
     pub const RELEASEDIR: u32 = 29;
     pub const CREATE: u32 = 35;
+    pub const RENAME2: u32 = 45;
 };
 
 const FuseAttr = extern struct {
@@ -158,6 +159,12 @@ const FuseMkdirIn = struct {
 const FuseRenameIn = struct {
     newdir: u64,
     flags: u32,
+};
+
+const ParsedRename = struct {
+    newdir: u64,
+    flags: u32,
+    names_offset: usize,
 };
 
 const FuseSetattrIn = struct {
@@ -385,7 +392,7 @@ const SandboxFs = struct {
             FuseOp.SETATTR => try self.handleSetattr(header, payload),
             FuseOp.MKDIR => try self.handleMkdir(header, payload),
             FuseOp.UNLINK => try self.handleUnlink(header, payload),
-            FuseOp.RENAME => try self.handleRename(header, payload),
+            FuseOp.RENAME, FuseOp.RENAME2 => try self.handleRename(header, payload),
             FuseOp.OPEN => try self.handleOpen(header, payload),
             FuseOp.OPENDIR => try self.handleOpendir(header),
             FuseOp.READDIR => try self.handleReaddir(header, payload),
@@ -592,8 +599,8 @@ const SandboxFs = struct {
             return;
         }
 
-        const rename = try parseRename(payload);
-        const names = payload[@sizeOf(FuseRenameIn)..];
+        const rename = try parseRename(header.opcode, payload);
+        const names = payload[rename.names_offset..];
         const old_name = parseName(names);
         const rest = names[old_name.len + 1 ..];
         const new_name = parseName(rest);
@@ -1069,11 +1076,17 @@ fn parseMkdir(payload: []const u8) !FuseMkdirIn {
     return .{ .mode = mode, .umask = umask };
 }
 
-fn parseRename(payload: []const u8) !FuseRenameIn {
+fn parseRename(opcode: u32, payload: []const u8) !ParsedRename {
     var offset: usize = 0;
     const newdir = try readU64(payload, &offset);
-    const flags = try readU32(payload, &offset);
-    return .{ .newdir = newdir, .flags = flags };
+
+    if (opcode == FuseOp.RENAME2) {
+        const flags = try readU32(payload, &offset);
+        return .{ .newdir = newdir, .flags = flags, .names_offset = @sizeOf(FuseRenameIn) };
+    }
+
+    // FUSE_RENAME (opcode 12) carries only `newdir`.
+    return .{ .newdir = newdir, .flags = 0, .names_offset = @sizeOf(u64) };
 }
 
 fn parseSetattr(payload: []const u8) !FuseSetattrIn {
