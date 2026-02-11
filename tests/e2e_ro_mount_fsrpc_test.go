@@ -4,35 +4,18 @@ package tests
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/yevhen/klitka/daemon"
-	klitkav1connect "github.com/yevhen/klitka/proto/gen/go/klitka/v1/klitkav1connect"
 )
 
 func TestE2ERoMountFSRPC(t *testing.T) {
 	requireVMBackend(t)
 	t.Setenv("KLITKA_FS_BACKEND", "fsrpc")
+	addr := startTestDaemon(t)
 
-	service := daemon.NewService()
-	path, handler := klitkav1connect.NewDaemonServiceHandler(service)
-	mux := http.NewServeMux()
-	mux.Handle(path, handler)
-
-	server, err := daemon.StartServer(mux, daemon.ServerOptions{TCPAddr: "127.0.0.1:0"})
-	if err != nil {
-		t.Fatalf("failed to start daemon: %v", err)
-	}
-	defer func() {
-		_ = server.HTTP.Close()
-	}()
-
-	addr := server.Listeners[0].Addr().String()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
@@ -46,6 +29,7 @@ func TestE2ERoMountFSRPC(t *testing.T) {
 	mountFlag := tempDir + ":" + guestPath + ":ro"
 
 	var readOutput []byte
+	var err error
 	for i := 0; i < 20; i++ {
 		readOutput, err = runCLIExec(ctx, addr, []string{"--mount", mountFlag, "--", "cat", filepath.Join(guestPath, "hello.txt")})
 		if err == nil {

@@ -11,9 +11,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/yevhen/klitka/daemon"
-	klitkav1connect "github.com/yevhen/klitka/proto/gen/go/klitka/v1/klitkav1connect"
 )
 
 func TestE2ESecretInjection(t *testing.T) {
@@ -21,18 +18,7 @@ func TestE2ESecretInjection(t *testing.T) {
 	requireVirtiofsd(t)
 	t.Setenv("KLITKA_PROXY_INSECURE", "1")
 
-	service := daemon.NewService()
-	path, handler := klitkav1connect.NewDaemonServiceHandler(service)
-	mux := http.NewServeMux()
-	mux.Handle(path, handler)
-
-	server, err := daemon.StartServer(mux, daemon.ServerOptions{TCPAddr: "127.0.0.1:0"})
-	if err != nil {
-		t.Fatalf("failed to start daemon: %v", err)
-	}
-	defer func() {
-		_ = server.HTTP.Close()
-	}()
+	addr := startTestDaemon(t)
 
 	secret := "super-secret"
 	headerCh := make(chan string, 1)
@@ -49,7 +35,6 @@ func TestE2ESecretInjection(t *testing.T) {
 	}
 	host := parsedURL.Hostname()
 
-	addr := server.Listeners[0].Addr().String()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 

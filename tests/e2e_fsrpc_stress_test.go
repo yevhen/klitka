@@ -4,34 +4,17 @@ package tests
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
-
-	"github.com/yevhen/klitka/daemon"
-	klitkav1connect "github.com/yevhen/klitka/proto/gen/go/klitka/v1/klitkav1connect"
 )
 
 func TestE2EFSRPCStressCreateDeleteTree(t *testing.T) {
 	requireVMBackend(t)
 	t.Setenv("KLITKA_FS_BACKEND", "fsrpc")
+	addr := startTestDaemon(t)
 
-	service := daemon.NewService()
-	path, handler := klitkav1connect.NewDaemonServiceHandler(service)
-	mux := http.NewServeMux()
-	mux.Handle(path, handler)
-
-	server, err := daemon.StartServer(mux, daemon.ServerOptions{TCPAddr: "127.0.0.1:0"})
-	if err != nil {
-		t.Fatalf("failed to start daemon: %v", err)
-	}
-	defer func() {
-		_ = server.HTTP.Close()
-	}()
-
-	addr := server.Listeners[0].Addr().String()
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 

@@ -4,34 +4,17 @@ package tests
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
-
-	"github.com/yevhen/klitka/daemon"
-	klitkav1connect "github.com/yevhen/klitka/proto/gen/go/klitka/v1/klitkav1connect"
 )
 
 func TestE2ERwMountFSRPC(t *testing.T) {
 	requireVMBackend(t)
 	t.Setenv("KLITKA_FS_BACKEND", "fsrpc")
+	addr := startTestDaemon(t)
 
-	service := daemon.NewService()
-	path, handler := klitkav1connect.NewDaemonServiceHandler(service)
-	mux := http.NewServeMux()
-	mux.Handle(path, handler)
-
-	server, err := daemon.StartServer(mux, daemon.ServerOptions{TCPAddr: "127.0.0.1:0"})
-	if err != nil {
-		t.Fatalf("failed to start daemon: %v", err)
-	}
-	defer func() {
-		_ = server.HTTP.Close()
-	}()
-
-	addr := server.Listeners[0].Addr().String()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
@@ -44,8 +27,7 @@ func TestE2ERwMountFSRPC(t *testing.T) {
 		t.Fatalf("failed to write ready file: %v", err)
 	}
 
-	var output []byte
-	output, err = runCLIExec(ctx, addr, []string{"--mount", mountFlag, "--", "sh", "-c", "for i in $(seq 1 20); do [ -f /mnt/host/.ready ] && break; sleep 0.1; done; mkdir -p /mnt/host/work && printf hello >/mnt/host/work/file.txt"})
+	output, err := runCLIExec(ctx, addr, []string{"--mount", mountFlag, "--", "sh", "-c", "for i in $(seq 1 20); do [ -f /mnt/host/.ready ] && break; sleep 0.1; done; mkdir -p /mnt/host/work && printf hello >/mnt/host/work/file.txt"})
 	if err != nil {
 		t.Fatalf("write exec failed: %v (output: %s)", err, output)
 	}

@@ -1,11 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import https from "node:https";
 import type { AddressInfo } from "node:net";
 
 import { Sandbox } from "../src/index.ts";
-import { buildDaemonEnv, ensureVirtiofsd, repoRoot } from "./helpers.ts";
+import { ensureVirtiofsd, launchDaemon, shutdownDaemon } from "./helpers.ts";
 
 const TEST_KEY = `-----BEGIN PRIVATE KEY-----
 MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC8Y2wgo8pSrX5a
@@ -61,16 +60,7 @@ YRATWPLem12PXj0yvQ==
 const hasVirtiofsd = await ensureVirtiofsd();
 
 test("sdk secret injection", { skip: !hasVirtiofsd }, async () => {
-  const daemonEnv = {
-    ...(await buildDaemonEnv()),
-    KLITKA_PROXY_INSECURE: "1",
-  };
-  const daemon = spawn("go", ["run", "./cmd/klitka-daemon", "--tcp", "127.0.0.1:0"], {
-    cwd: repoRoot,
-    stdio: "pipe",
-    detached: true,
-    env: daemonEnv,
-  });
+  const { daemon, port } = await launchDaemon({ KLITKA_PROXY_INSECURE: "1" });
 
   let resolveHeader: (value: string) => void = () => undefined;
   const headerPromise = new Promise<string>((resolve) => {
@@ -88,7 +78,6 @@ test("sdk secret injection", { skip: !hasVirtiofsd }, async () => {
   });
 
   try {
-    const port = await waitForDaemon(daemon);
     const address = server.address() as AddressInfo;
     const secret = "super-secret";
 
@@ -120,75 +109,6 @@ test("sdk secret injection", { skip: !hasVirtiofsd }, async () => {
     await shutdownDaemon(daemon);
   }
 });
-
-async function waitForDaemon(proc: ReturnType<typeof spawn>, timeoutMs = 15000): Promise<number> {
-  const deadline = Date.now() + timeoutMs;
-  let output = "";
-
-  return await new Promise((resolve, reject) => {
-    const onExit = (code: number | null) => {
-      reject(new Error(`daemon exited early (code: ${code ?? "unknown"})\n${output}`));
-    };
-
-    const onData = (chunk: Buffer) => {
-      const message = chunk.toString();
-      output += message;
-      const match = output.match(/daemon listening on ([\d.:]+)/);
-      if (match) {
-        cleanup();
-        const addr = match[1];
-        const port = Number(addr.split(":").pop());
-        resolve(port);
-      }
-    };
-
-    const timer = setInterval(() => {
-      if (Date.now() > deadline) {
-        cleanup();
-        reject(new Error(`daemon did not start in time\n${output}`));
-      }
-    }, 100);
-
-    const cleanup = () => {
-      clearInterval(timer);
-      proc.off("exit", onExit);
-      proc.stdout?.off("data", onData);
-      proc.stderr?.off("data", onData);
-    };
-
-    proc.on("exit", onExit);
-    proc.stdout?.on("data", onData);
-    proc.stderr?.on("data", onData);
-  });
-}
-
-async function shutdownDaemon(proc: ReturnType<typeof spawn>) {
-  if (proc.killed) return;
-  killProcess(proc, "SIGTERM");
-  const exited = await waitForExit(proc, 2000);
-  if (!exited) {
-    killProcess(proc, "SIGKILL");
-    await waitForExit(proc, 2000);
-  }
-}
-
-function killProcess(proc: ReturnType<typeof spawn>, signal: NodeJS.Signals) {
-  if (proc.pid && process.platform !== "win32") {
-    process.kill(-proc.pid, signal);
-  } else {
-    proc.kill(signal);
-  }
-}
-
-function waitForExit(proc: ReturnType<typeof spawn>, timeoutMs: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(false), timeoutMs);
-    proc.once("exit", () => {
-      clearTimeout(timer);
-      resolve(true);
-    });
-  });
-}
 
 function promiseWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise((resolve, reject) => {

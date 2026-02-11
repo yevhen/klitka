@@ -4,34 +4,17 @@ package tests
 
 import (
 	"context"
-	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/yevhen/klitka/daemon"
-	klitkav1connect "github.com/yevhen/klitka/proto/gen/go/klitka/v1/klitkav1connect"
 )
 
 func TestE2ERoMount(t *testing.T) {
 	requireVMBackend(t)
-	service := daemon.NewService()
-	path, handler := klitkav1connect.NewDaemonServiceHandler(service)
-	mux := http.NewServeMux()
-	mux.Handle(path, handler)
+	addr := startTestDaemon(t)
 
-	server, err := daemon.StartServer(mux, daemon.ServerOptions{TCPAddr: "127.0.0.1:0"})
-	if err != nil {
-		t.Fatalf("failed to start daemon: %v", err)
-	}
-	defer func() {
-		_ = server.HTTP.Close()
-	}()
-
-	addr := server.Listeners[0].Addr().String()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
@@ -56,19 +39,4 @@ func TestE2ERoMount(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected write to fail (output: %s)", writeOutput)
 	}
-}
-
-func runCLIExec(ctx context.Context, addr string, args []string) ([]byte, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-	repoRoot := filepath.Dir(wd)
-	cliPath := filepath.Join(repoRoot, "cli")
-
-	cmdArgs := append([]string{"run", cliPath, "exec"}, args...)
-	cmd := exec.CommandContext(ctx, "go", cmdArgs...)
-	cmd.Env = append(os.Environ(), "KLITKA_TCP="+addr)
-	cmd.Dir = repoRoot
-	return cmd.CombinedOutput()
 }

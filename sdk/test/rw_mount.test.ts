@@ -1,66 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs/promises";
 import os from "node:os";
 
 import { Sandbox } from "../src/index.ts";
-import { buildDaemonEnv, repoRoot } from "./helpers.ts";
-
-async function waitForDaemon(proc: ReturnType<typeof spawn>, timeoutMs = 15000): Promise<number> {
-  const deadline = Date.now() + timeoutMs;
-  let output = "";
-
-  return await new Promise((resolve, reject) => {
-    const onExit = (code: number | null) => {
-      reject(new Error(`daemon exited early (code: ${code ?? "unknown"})\n${output}`));
-    };
-
-    const onData = (chunk: Buffer) => {
-      const message = chunk.toString();
-      output += message;
-      const match = output.match(/daemon listening on ([\d.:]+)/);
-      if (match) {
-        cleanup();
-        const addr = match[1];
-        const port = Number(addr.split(":").pop());
-        resolve(port);
-      }
-    };
-
-    const timer = setInterval(() => {
-      if (Date.now() > deadline) {
-        cleanup();
-        reject(new Error(`daemon did not start in time\n${output}`));
-      }
-    }, 100);
-
-    const cleanup = () => {
-      clearInterval(timer);
-      proc.off("exit", onExit);
-      proc.stdout?.off("data", onData);
-      proc.stderr?.off("data", onData);
-    };
-
-    proc.on("exit", onExit);
-    proc.stdout?.on("data", onData);
-    proc.stderr?.on("data", onData);
-  });
-}
+import { launchDaemon, shutdownDaemon } from "./helpers.ts";
 
 test("sdk rw mount + memfs root", async () => {
-  const daemonEnv = await buildDaemonEnv();
-  const daemon = spawn("go", ["run", "./cmd/klitka-daemon", "--tcp", "127.0.0.1:0"], {
-    cwd: repoRoot,
-    stdio: "pipe",
-    detached: true,
-    env: daemonEnv,
-  });
+  const { daemon, port } = await launchDaemon();
 
   try {
-    const port = await waitForDaemon(daemon);
-
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "klitka-mount-"));
     const readyFile = path.join(tempDir, ".ready");
     await fs.writeFile(readyFile, "ok");
@@ -104,31 +54,3 @@ test("sdk rw mount + memfs root", async () => {
     await shutdownDaemon(daemon);
   }
 });
-
-async function shutdownDaemon(proc: ReturnType<typeof spawn>) {
-  if (proc.killed) return;
-  killProcess(proc, "SIGTERM");
-  const exited = await waitForExit(proc, 2000);
-  if (!exited) {
-    killProcess(proc, "SIGKILL");
-    await waitForExit(proc, 2000);
-  }
-}
-
-function killProcess(proc: ReturnType<typeof spawn>, signal: NodeJS.Signals) {
-  if (proc.pid && process.platform !== "win32") {
-    process.kill(-proc.pid, signal);
-  } else {
-    proc.kill(signal);
-  }
-}
-
-function waitForExit(proc: ReturnType<typeof spawn>, timeoutMs: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(false), timeoutMs);
-    proc.once("exit", () => {
-      clearTimeout(timer);
-      resolve(true);
-    });
-  });
-}
