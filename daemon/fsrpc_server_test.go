@@ -3,6 +3,7 @@ package daemon
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -269,5 +270,51 @@ func TestFSRPCMountGCRemovesStaleHandlesAndInodes(t *testing.T) {
 	}
 	if inodeCount != 1 {
 		t.Fatalf("expected only root inode mapping to remain, got %d", inodeCount)
+	}
+}
+
+func TestFSRPCMountPing(t *testing.T) {
+	mount := newFSRPCMount(t.TempDir(), klitkav1.MountMode_MOUNT_MODE_RO)
+	defer mount.close()
+
+	res, errCode, message := mount.handle("ping", map[string]interface{}{})
+	if errCode != 0 {
+		t.Fatalf("ping err = %d (%s)", errCode, message)
+	}
+	ok, _ := res["ok"].(bool)
+	if !ok {
+		t.Fatalf("unexpected ping response: %#v", res)
+	}
+	if got, _ := res["mode"].(string); got != "ro" {
+		t.Fatalf("unexpected ping mode: %q", got)
+	}
+}
+
+func TestFormatFSRPCOpMetrics(t *testing.T) {
+	metrics := map[string]fsrpcOpMetrics{
+		"read": {
+			count:        2,
+			errors:       1,
+			reqBytes:     30,
+			resBytes:     80,
+			latencyTotal: 5 * time.Millisecond,
+			latencyMax:   3 * time.Millisecond,
+		},
+		"lookup": {
+			count:        1,
+			errors:       0,
+			reqBytes:     10,
+			resBytes:     20,
+			latencyTotal: 1 * time.Millisecond,
+			latencyMax:   1 * time.Millisecond,
+		},
+	}
+
+	summary := formatFSRPCOpMetrics(metrics)
+	if !strings.Contains(summary, "lookup[count=1 errors=0 avg_ms=1 max_ms=1 req_bytes=10 res_bytes=20]") {
+		t.Fatalf("unexpected summary: %s", summary)
+	}
+	if !strings.Contains(summary, "read[count=2 errors=1 avg_ms=2 max_ms=3 req_bytes=30 res_bytes=80]") {
+		t.Fatalf("unexpected summary: %s", summary)
 	}
 }

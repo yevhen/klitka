@@ -63,7 +63,26 @@ type fsrpcServer struct {
 	conn      net.Conn
 	reader    *bufio.Reader
 	mount     *fsrpcMount
+	metrics   fsrpcServerMetrics
 	closeOnce sync.Once
+}
+
+type fsrpcOpMetrics struct {
+	count        uint64
+	errors       uint64
+	reqBytes     uint64
+	resBytes     uint64
+	latencyTotal time.Duration
+	latencyMax   time.Duration
+}
+
+type fsrpcServerMetrics struct {
+	started       time.Time
+	totalRequests uint64
+	totalErrors   uint64
+	totalReqBytes uint64
+	totalResBytes uint64
+	ops           map[string]fsrpcOpMetrics
 }
 
 type fsrpcHandle struct {
@@ -128,14 +147,96 @@ func (mount *fsrpcMount) close() {
 
 func newFSRPCServer(conn net.Conn, mount *fsrpcMount) *fsrpcServer {
 	return &fsrpcServer{
-		conn:   conn,
-		reader: bufio.NewReader(conn),
-		mount:  mount,
+		conn:    conn,
+		reader:  bufio.NewReader(conn),
+		mount:   mount,
+		metrics: newFSRPCServerMetrics(),
 	}
+}
+
+func newFSRPCServerMetrics() fsrpcServerMetrics {
+	return fsrpcServerMetrics{
+		started: time.Now(),
+		ops:     map[string]fsrpcOpMetrics{},
+	}
+}
+
+func (metrics *fsrpcServerMetrics) observe(op string, reqBytes int, resBytes int, errCode int32, latency time.Duration) {
+	metrics.totalRequests++
+	if errCode != 0 {
+		metrics.totalErrors++
+	}
+	if reqBytes > 0 {
+		metrics.totalReqBytes += uint64(reqBytes)
+	}
+	if resBytes > 0 {
+		metrics.totalResBytes += uint64(resBytes)
+	}
+
+	opMetrics := metrics.ops[op]
+	opMetrics.count++
+	if errCode != 0 {
+		opMetrics.errors++
+	}
+	if reqBytes > 0 {
+		opMetrics.reqBytes += uint64(reqBytes)
+	}
+	if resBytes > 0 {
+		opMetrics.resBytes += uint64(resBytes)
+	}
+	opMetrics.latencyTotal += latency
+	if latency > opMetrics.latencyMax {
+		opMetrics.latencyMax = latency
+	}
+	metrics.ops[op] = opMetrics
+}
+
+func formatFSRPCOpMetrics(metrics map[string]fsrpcOpMetrics) string {
+	if len(metrics) == 0 {
+		return "-"
+	}
+
+	names := make([]string, 0, len(metrics))
+	for name := range metrics {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	parts := make([]string, 0, len(names))
+	for _, name := range names {
+		stat := metrics[name]
+		avg := int64(0)
+		if stat.count > 0 {
+			avg = stat.latencyTotal.Milliseconds() / int64(stat.count)
+		}
+		parts = append(parts, fmt.Sprintf("%s[count=%d errors=%d avg_ms=%d max_ms=%d req_bytes=%d res_bytes=%d]",
+			name,
+			stat.count,
+			stat.errors,
+			avg,
+			stat.latencyMax.Milliseconds(),
+			stat.reqBytes,
+			stat.resBytes,
+		))
+	}
+	return strings.Join(parts, ",")
 }
 
 func (server *fsrpcServer) serve() error {
 	defer server.Close()
+	defer func() {
+		uptime := time.Since(server.metrics.started)
+		log.Printf(
+			"fsrpc status=summary mount=%q requests=%d errors=%d req_bytes=%d res_bytes=%d uptime_ms=%d ops=%s",
+			server.mount.root,
+			server.metrics.totalRequests,
+			server.metrics.totalErrors,
+			server.metrics.totalReqBytes,
+			server.metrics.totalResBytes,
+			uptime.Milliseconds(),
+			formatFSRPCOpMetrics(server.metrics.ops),
+		)
+	}()
 
 	for {
 		frame, err := readFrame(server.reader)
@@ -152,18 +253,22 @@ func (server *fsrpcServer) serve() error {
 			return err
 		}
 
+		start := time.Now()
 		res, errCode, message := server.mount.handle(req.op, req.args)
 		if errCode != 0 && shouldLogFSRPCOpError(req.op, errCode) {
 			log.Printf("fsrpc status=op_error mount=%q op=%q req_id=%d errno=%d message=%q", server.mount.root, req.op, req.id, errCode, message)
 		}
-		if sendErr := server.sendResponse(req.id, req.op, errCode, res, message); sendErr != nil {
+		responseBytes, sendErr := server.sendResponse(req.id, req.op, errCode, res, message)
+		if sendErr != nil {
+			server.metrics.observe(req.op, len(frame), 0, linuxErrIO, time.Since(start))
 			log.Printf("fsrpc status=send_error mount=%q op=%q req_id=%d err=%q", server.mount.root, req.op, req.id, sendErr.Error())
 			return sendErr
 		}
+		server.metrics.observe(req.op, len(frame), responseBytes, errCode, time.Since(start))
 	}
 }
 
-func (server *fsrpcServer) sendResponse(id uint32, op string, errCode int32, res map[string]interface{}, message string) error {
+func (server *fsrpcServer) sendResponse(id uint32, op string, errCode int32, res map[string]interface{}, message string) (int, error) {
 	payload := map[string]interface{}{
 		"op":  op,
 		"err": errCode,
@@ -188,14 +293,17 @@ func (server *fsrpcServer) sendResponse(id uint32, op string, errCode int32, res
 
 	encoded, err := virtioEncMode.Marshal(msg)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	frame := make([]byte, 4+len(encoded))
 	binary.BigEndian.PutUint32(frame[:4], uint32(len(encoded)))
 	copy(frame[4:], encoded)
 
-	return writeAllConn(server.conn, frame)
+	if err := writeAllConn(server.conn, frame); err != nil {
+		return 0, err
+	}
+	return len(frame), nil
 }
 
 func writeAllConn(conn net.Conn, data []byte) error {
@@ -295,6 +403,11 @@ func (mount *fsrpcMount) handle(op string, req map[string]interface{}) (map[stri
 		return mount.handleRead(req)
 	case "release":
 		return mount.handleRelease(req)
+	case "ping":
+		return map[string]interface{}{
+			"ok":   true,
+			"mode": mount.modeLabel(),
+		}, 0, ""
 	case "write":
 		if mount.readOnly() {
 			return nil, linuxErrROFS, "read-only mount"
@@ -1324,6 +1437,13 @@ func mapOSError(err error) int32 {
 	}
 
 	return linuxErrIO
+}
+
+func (mount *fsrpcMount) modeLabel() string {
+	if mount.readOnly() {
+		return "ro"
+	}
+	return "rw"
 }
 
 func (mount *fsrpcMount) readOnly() bool {

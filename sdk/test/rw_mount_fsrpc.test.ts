@@ -12,9 +12,6 @@ test("sdk rw mount with fsrpc", async () => {
 
   try {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "klitka-fsrpc-"));
-    const readyFile = path.join(tempDir, ".ready");
-    await fs.writeFile(readyFile, "ok");
-
     const sandbox = await Sandbox.start({
       baseUrl: `http://127.0.0.1:${port}`,
       fs: {
@@ -25,7 +22,7 @@ test("sdk rw mount with fsrpc", async () => {
     const writeResult = await sandbox.exec([
       "sh",
       "-c",
-      "for i in $(seq 1 20); do [ -f /mnt/host/.ready ] && break; sleep 0.1; done; mkdir -p /mnt/host/work && printf hello >/mnt/host/work/file.txt",
+      "mkdir -p /mnt/host/work && printf hello >/mnt/host/work/file.txt",
     ]);
     assert.equal(writeResult.exitCode, 0);
 

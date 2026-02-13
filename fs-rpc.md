@@ -11,11 +11,15 @@ Non-goals (for initial rollout):
 - Symlink semantics beyond strict safe defaults.
 
 ## Current state
-- Linux uses `virtiofsd` (fast but not portable, flaky in CI).
-- Guest already ships **sandboxfs** + **fs_rpc**:
+- FS backend selector is implemented (`KLITKA_FS_BACKEND=auto|fsrpc|virtiofs`).
+- `auto` resolves to:
+  - macOS / CI: `fsrpc`
+  - Linux with `virtiofsd`: `virtiofs`
+  - fallback: `fsrpc`
+- Guest ships **sandboxfs** + **fs_rpc**:
   - `guest/src/sandboxfs.zig`: FUSE filesystem that talks to host over RPC.
   - `guest/src/fs_rpc.zig`: CBOR frame client for `fs_request` / `fs_response`.
-- QEMU currently exposes a single virtio-serial port for exec; mounts are passed via `klitka.mount=` and handled by `virtiofs` in init.
+- QEMU mount path supports per-mount FS-RPC virtio-serial channels (`virtio-fs-<idx>`) and virtiofs fallback.
 
 ## Target architecture
 ```
@@ -34,7 +38,8 @@ Guest (sandboxfs + FUSE)
 - **One FS-RPC port per mount** (simplest isolation and namespace mapping).
 - QEMU creates a `virtserialport` named `virtio-fs-<idx>` for each mount.
 - Guest `init` starts a sandboxfs instance per mount:
-  - `sandboxfs --mount <guestPath> --rpc-path /dev/virtio-ports/virtio-fs-<idx>`
+  - `sandboxfs --mount <guestPath> --rpc-path /dev/virtio-ports/virtio-fs-<idx> --require-rpc`
+  - startup performs `ping` readiness before mounting and waits for `fuse.sandboxfs` to appear in `/proc/mounts`.
 
 ### FS backend selector
 Introduce `KLITKA_FS_BACKEND` with values:
@@ -137,6 +142,6 @@ Error handling:
   - `KLITKA_ALLOW_VIRTIOFS=1` to run virtiofs tests on Linux CI when desired.
 
 ## Open questions
-- Should we add a small "fsrpc ping" op for health checks?
-- Should we expose `fsrpc` metrics (ops count, bytes, latency) in daemon logs?
+- ✅ Added `ping` op for lightweight host-side FS-RPC health checks.
+- ✅ Added FS-RPC summary metrics in daemon logs (requests/errors/bytes + per-op latency breakdown).
 - Do we want a single multi‑mount RPC channel (complex) later, or keep per‑mount channels (simple)?

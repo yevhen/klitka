@@ -855,6 +855,7 @@ pub fn main() !void {
 
     var mount_point: []const u8 = "/data";
     var rpc_path: []const u8 = "/dev/virtio-ports/virtio-fs";
+    var require_rpc = false;
 
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
@@ -868,6 +869,10 @@ pub fn main() !void {
             i += 1;
             continue;
         }
+        if (std.mem.eql(u8, args[i], "--require-rpc")) {
+            require_rpc = true;
+            continue;
+        }
     }
 
     const fuse_fd = try std.posix.open("/dev/fuse", .{ .ACCMODE = .RDWR, .CLOEXEC = true }, 0);
@@ -877,8 +882,13 @@ pub fn main() !void {
     var rpc_client: ?fs_rpc.FsRpcClient = null;
     if (rpc_fd) |fd| {
         rpc_client = fs_rpc.FsRpcClient.init(allocator, fd);
+        try waitForRpcReady(&rpc_client.?, 5 * std.time.ms_per_s);
         log.info("connected rpc at {s}", .{rpc_path});
     } else {
+        if (require_rpc) {
+            log.err("rpc port {s} unavailable", .{rpc_path});
+            return error.RpcUnavailable;
+        }
         log.warn("rpc port {s} unavailable; running in stub mode", .{rpc_path});
     }
 
@@ -933,6 +943,37 @@ fn openRpcPort(path: []const u8) ?std.posix.fd_t {
         std.posix.nanosleep(0, 100 * std.time.ns_per_ms);
     }
     return null;
+}
+
+fn waitForRpcReady(client: *fs_rpc.FsRpcClient, timeout_ms: u64) !void {
+    const no_fields = [_]fs_rpc.Field{};
+    const deadline = std.time.milliTimestamp() + @as(i64, @intCast(timeout_ms));
+
+    while (true) {
+        var response = client.request("ping", &no_fields) catch |err| {
+            if (std.time.milliTimestamp() >= deadline) {
+                log.err("rpc ping transport failed: {s}", .{@errorName(err)});
+                return error.RpcUnavailable;
+            }
+            std.posix.nanosleep(0, 100 * std.time.ns_per_ms);
+            continue;
+        };
+        defer response.deinit();
+
+        if (response.err == 0) {
+            return;
+        }
+        if (std.time.milliTimestamp() >= deadline) {
+            if (response.message) |message| {
+                log.err("rpc ping failed err={} message={s}", .{ response.err, message });
+            } else {
+                log.err("rpc ping failed err={}", .{response.err});
+            }
+            return error.RpcUnavailable;
+        }
+
+        std.posix.nanosleep(0, 100 * std.time.ns_per_ms);
+    }
 }
 
 fn openVirtioPortByName(expected: []const u8) ?std.posix.fd_t {

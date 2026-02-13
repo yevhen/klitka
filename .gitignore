@@ -8,3 +8,4 @@ guest/image/.cache
 guest/zig-out
 guest/.zig-cache
 dist
+.idea/

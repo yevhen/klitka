@@ -181,7 +181,28 @@ mount_fsrpc() {
   rpc_path="/dev/virtio-ports/${port}"
 
   log "[init] starting sandboxfs ${port} -> ${path} (${mode})"
-  /usr/bin/sandboxfs --mount "${path}" --rpc-path "${rpc_path}" > "${CONSOLE:-/dev/null}" 2>&1 &
+  /usr/bin/sandboxfs --mount "${path}" --rpc-path "${rpc_path}" --require-rpc > "${CONSOLE:-/dev/null}" 2>&1 &
+  pid=$!
+
+  ready=0
+  i=0
+  while [ "$i" -lt 60 ]; do
+    if grep -q "[[:space:]]${path}[[:space:]]fuse.sandboxfs[[:space:]]" /proc/mounts; then
+      ready=1
+      break
+    fi
+    if ! kill -0 "$pid" 2>/dev/null; then
+      break
+    fi
+    i=$((i + 1))
+    sleep 0.1
+  done
+
+  if [ "$ready" -eq 1 ]; then
+    log "[init] sandboxfs mounted ${path}"
+  else
+    log "[init] sandboxfs mount not ready for ${path}"
+  fi
 }
 
 if [ -n "${mount_specs}" ]; then

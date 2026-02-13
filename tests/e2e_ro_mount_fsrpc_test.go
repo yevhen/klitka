@@ -28,15 +28,7 @@ func TestE2ERoMountFSRPC(t *testing.T) {
 	guestPath := "/mnt/host"
 	mountFlag := tempDir + ":" + guestPath + ":ro"
 
-	var readOutput []byte
-	var err error
-	for i := 0; i < 20; i++ {
-		readOutput, err = runCLIExec(ctx, addr, []string{"--mount", mountFlag, "--", "cat", filepath.Join(guestPath, "hello.txt")})
-		if err == nil {
-			break
-		}
-		time.Sleep(150 * time.Millisecond)
-	}
+	readOutput, err := runCLIExec(ctx, addr, []string{"--mount", mountFlag, "--", "cat", filepath.Join(guestPath, "hello.txt")})
 	if err != nil {
 		t.Fatalf("read exec failed: %v (output: %s)", err, readOutput)
 	}
@@ -44,7 +36,7 @@ func TestE2ERoMountFSRPC(t *testing.T) {
 		t.Fatalf("unexpected read output: %s", readOutput)
 	}
 
-	writeOutput, err := runCLIExec(ctx, addr, []string{"--mount", mountFlag, "--", "sh", "-c", "for i in $(seq 1 20); do [ -f /mnt/host/hello.txt ] && break; sleep 0.1; done; touch /mnt/host/new.txt"})
+	writeOutput, err := runCLIExec(ctx, addr, []string{"--mount", mountFlag, "--", "touch", "/mnt/host/new.txt"})
 	if err == nil {
 		t.Fatalf("expected write to fail (output: %s)", writeOutput)
 	}
