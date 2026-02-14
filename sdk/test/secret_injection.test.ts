@@ -4,7 +4,7 @@ import https from "node:https";
 import type { AddressInfo } from "node:net";
 
 import { Sandbox } from "../src/index.ts";
-import { ensureVirtiofsd, launchDaemon, shutdownDaemon } from "./helpers.ts";
+import { launchDaemon, shutdownDaemon } from "./helpers.ts";
 
 const TEST_KEY = `-----BEGIN PRIVATE KEY-----
 MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC8Y2wgo8pSrX5a
@@ -57,58 +57,61 @@ YRATWPLem12PXj0yvQ==
 -----END CERTIFICATE-----
 `;
 
-const hasVirtiofsd = await ensureVirtiofsd();
-
-test("sdk secret injection", { skip: !hasVirtiofsd }, async () => {
-  const { daemon, port } = await launchDaemon({ KLITKA_PROXY_INSECURE: "1" });
-
-  let resolveHeader: (value: string) => void = () => undefined;
-  const headerPromise = new Promise<string>((resolve) => {
-    resolveHeader = resolve;
-  });
-
-  const server = https.createServer({ key: TEST_KEY, cert: TEST_CERT }, (req, res) => {
-    resolveHeader(String(req.headers["authorization"] ?? ""));
-    res.writeHead(200, { "content-type": "text/plain" });
-    res.end("ok");
-  });
-
-  await new Promise<void>((resolve) => {
-    server.listen(0, "127.0.0.1", () => resolve());
-  });
-
-  try {
-    const address = server.address() as AddressInfo;
-    const secret = "super-secret";
-
-    const sandbox = await Sandbox.start({
-      baseUrl: `http://127.0.0.1:${port}`,
-      network: { allowHosts: ["localhost"], blockPrivateRanges: false },
-      secrets: {
-        API_KEY: { hosts: ["localhost"], value: secret },
-      },
+for (const fsBackend of ["auto", "fsrpc"] as const) {
+  test(`sdk secret injection (fs_backend=${fsBackend})`, async () => {
+    const { daemon, port } = await launchDaemon({
+      KLITKA_PROXY_INSECURE: "1",
+      KLITKA_FS_BACKEND: fsBackend,
     });
 
-    const targetUrl = `https://localhost:${address.port}`;
-    const result = await sandbox.exec([
-      "sh",
-      "-c",
-      `echo $API_KEY; curl -fsS -H "Authorization: Bearer $API_KEY" ${targetUrl}`,
-    ]);
+    let resolveHeader: (value: string) => void = () => undefined;
+    const headerPromise = new Promise<string>((resolve) => {
+      resolveHeader = resolve;
+    });
 
-    const output = new TextDecoder().decode(result.stdout);
-    assert.equal(result.exitCode, 0, `exec failed (code ${result.exitCode}): ${output}`);
-    assert.ok(!output.includes(secret), `secret leaked in output: ${output}`);
+    const server = https.createServer({ key: TEST_KEY, cert: TEST_CERT }, (req, res) => {
+      resolveHeader(String(req.headers["authorization"] ?? ""));
+      res.writeHead(200, { "content-type": "text/plain" });
+      res.end("ok");
+    });
 
-    const header = await promiseWithTimeout(headerPromise, 5000);
-    assert.equal(header, `Bearer ${secret}`);
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
 
-    await sandbox.close();
-  } finally {
-    server.close();
-    await shutdownDaemon(daemon);
-  }
-});
+    try {
+      const address = server.address() as AddressInfo;
+      const secret = "super-secret";
+
+      const sandbox = await Sandbox.start({
+        baseUrl: `http://127.0.0.1:${port}`,
+        network: { allowHosts: ["localhost"], blockPrivateRanges: false },
+        secrets: {
+          API_KEY: { hosts: ["localhost"], value: secret },
+        },
+      });
+
+      const targetUrl = `https://localhost:${address.port}`;
+      const result = await sandbox.exec([
+        "sh",
+        "-c",
+        `echo $API_KEY; curl -fsS -H "Authorization: Bearer $API_KEY" ${targetUrl}`,
+      ]);
+
+      const output = new TextDecoder().decode(result.stdout);
+      assert.equal(result.exitCode, 0, `exec failed (code ${result.exitCode}): ${output}`);
+      assert.ok(!output.includes(secret), `secret leaked in output: ${output}`);
+
+      const header = await promiseWithTimeout(headerPromise, 5000);
+      assert.equal(header, `Bearer ${secret}`);
+
+      await sandbox.close();
+    } finally {
+      server.close();
+      await shutdownDaemon(daemon);
+    }
+  });
+}
 
 function promiseWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise((resolve, reject) => {

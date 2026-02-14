@@ -72,6 +72,8 @@ nfpms:
     maintainer: yevhen
     description: Local sandbox runtime for running LLM workloads inside a microVM.
     homepage: https://github.com/yevhen/klitka
+    recommends:
+      - virtiofsd
     contents:
       - src: guest/image/out/vmlinuz
         dst: /usr/share/klitka/guest/vmlinuz

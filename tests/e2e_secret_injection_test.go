@@ -15,8 +15,19 @@ import (
 
 func TestE2ESecretInjection(t *testing.T) {
 	requireVMBackend(t)
-	requireVirtiofsd(t)
 	t.Setenv("KLITKA_PROXY_INSECURE", "1")
+
+	for _, fsBackend := range []string{"auto", "fsrpc"} {
+		fsBackend := fsBackend
+		t.Run("fs_backend="+fsBackend, func(t *testing.T) {
+			t.Setenv("KLITKA_FS_BACKEND", fsBackend)
+			runSecretInjectionScenario(t)
+		})
+	}
+}
+
+func runSecretInjectionScenario(t *testing.T) {
+	t.Helper()
 
 	addr := startTestDaemon(t)
 

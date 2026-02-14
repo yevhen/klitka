@@ -68,6 +68,32 @@ A minimal agent running inside the guest microVM that handles process execution 
 *   **Linux:** QEMU with KVM.
 *   **Windows:** Integration via WSL2 (the daemon runs inside a WSL2 distribution, while the Windows CLI/SDK connects to it over a local TCP port).
 
+## Linux filesystem backend (virtiofsd vs FS-RPC)
+
+On Linux, `klitka` supports two mount backends:
+
+- `virtiofs` (native performance path, requires `virtiofsd` on the host)
+- `fsrpc` (portable fallback, no `virtiofsd` required)
+
+Default behavior is `KLITKA_FS_BACKEND=auto`:
+
+- if `virtiofsd` is available, `auto` uses `virtiofs`
+- otherwise, `auto` falls back to `fsrpc`
+
+If you want the native virtiofs path, install `virtiofsd` in your Linux environment and ensure it is discoverable (`command -v virtiofsd`).
+If your distro installs it in a non-standard path, set:
+
+```bash
+KLITKA_VIRTIOFSD=/path/to/virtiofsd
+```
+
+You can also force backend selection explicitly:
+
+```bash
+KLITKA_FS_BACKEND=virtiofs   # require virtiofsd
+KLITKA_FS_BACKEND=fsrpc      # force FS-RPC
+```
+
 ## Development
 
 `klitka` uses Nix to manage its development environment. See [CONTRIBUTING.md](CONTRIBUTING.md) for details on building the guest image, running tests, and project conventions.
