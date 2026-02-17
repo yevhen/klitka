@@ -10,6 +10,9 @@ Assume untrusted guest code can:
 - use DNS lookups for data exfiltration
 - probe private/internal address space
 
+DNS-specific risks are covered in detail in
+[`dns-security-considerations.md`](./dns-security-considerations.md).
+
 ## Network policy surface
 
 `NetworkPolicy` fields:
@@ -50,23 +53,18 @@ Hardened mode:
 
 ## DNS modes
 
-### `open` (default)
+For DNS security rationale, threat-model details, and mode trade-offs, see
+[`dns-security-considerations.md`](./dns-security-considerations.md).
 
-Compatibility resolver behavior.
+Operational summary:
 
-### `trusted`
-
-Resolver lookups are performed only via `trusted_dns_servers[]`.
+- `open` (default): compatibility resolver behavior.
+- `trusted`: resolver lookups use only `trusted_dns_servers[]`.
+- `synthetic`: external DNS lookups are blocked in the proxy resolver path.
 
 Validation rules:
-- requires at least one trusted DNS server
+- `trusted` requires at least one trusted DNS server
 - trusted servers are only accepted in `trusted` mode
-
-### `synthetic`
-
-External DNS lookups are blocked in the proxy resolver path.
-
-This reduces DNS-based exfil vectors.
 
 ## Policy evaluation order
 
