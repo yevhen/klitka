@@ -10,7 +10,9 @@
 
 ## Features
 
-*   **Network Isolation:** Default-deny policy for all non-whitelisted traffic. HTTP/HTTPS traffic is proxied and can be inspected or modified by the host.
+*   **Network Isolation:** Default-deny policy for non-whitelisted traffic. HTTP/HTTPS traffic can be proxied and inspected by the host.
+*   **Hardened Egress Mode:** `egressMode: "strict"` forces VM egress through the host mediation path and blocks direct bypass attempts.
+*   **DNS Profiles:** `dnsMode: "open" | "trusted" | "synthetic"` controls resolver behavior (compat, pinned resolvers, or DNS-minimized mode).
 *   **DNS Guard:** Prevents DNS rebinding attacks by resolving and verifying IP addresses on the host before they reach the guest.
 *   **Secret Masking:** Sensitive credentials (like API keys) are injected at the network proxy layer. The guest environment only sees placeholder values, making it harder for untrusted code to exfiltrate real secrets.
 *   **Filesystem Boundary:** No host files are accessible to the guest unless explicitly mounted.
@@ -28,7 +30,10 @@ const vm = await Sandbox.start({
   },
   network: {
     allowHosts: ["api.github.com", "api.openai.com"],
-    blockPrivateRanges: true
+    blockPrivateRanges: true,
+    egressMode: "strict",
+    dnsMode: "trusted",
+    trustedDnsServers: ["1.1.1.1:53"]
   },
   secrets: {
     GITHUB_TOKEN: {
@@ -47,6 +52,21 @@ session.write(new TextEncoder().encode("echo 'hello'\n"));
 
 await vm.close();
 ```
+
+## Network enforcement and DNS profiles
+
+`network.egressMode`:
+- `"compat"` (default): backwards-compatible mode. Proxy env vars are injected, but guest code can still bypass them.
+- `"strict"`: hardened mode. VM networking is restricted to the host-enforced path.
+
+`network.dnsMode`:
+- `"open"` (default): system resolver behavior (compat).
+- `"trusted"`: resolver lookups only via `trustedDnsServers`.
+- `"synthetic"`: no external DNS lookups from the enforcement proxy (limits DNS-based exfil).
+
+Migration note: start with `egressMode: "compat"` for legacy workloads, then switch to `"strict"` after validating outbound dependencies and DNS requirements.
+
+Detailed policy semantics and migration checklist: [docs/network-enforcement.md](docs/network-enforcement.md).
 
 ## Key Components
 

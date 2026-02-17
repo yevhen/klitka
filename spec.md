@@ -402,6 +402,32 @@ Definition of Done (applies to every slice):
 - [x] Secret injection for allowed hosts only.
 - ✅ Automated test: `e2e_secret_injection` verifies injected header at allowed host and placeholder‑only env inside guest.
 
+### Slice N0 — Network config surface expansion
+**Goal:** Extend API without breaking existing behavior.
+- [x] Add `egress_mode` (`compat|strict`) and `dns_mode` (`open|trusted|synthetic`) to `NetworkPolicy`.
+- [x] Add `trusted_dns_servers[]` for trusted DNS profile.
+- [x] Wire new fields through CLI + SDK.
+- ✅ DoD: existing default behavior remains `compat + open`.
+
+### Slice N1 — Strict egress enforcement
+**Goal:** Prevent proxy bypass in hardened mode.
+- [x] Add strict policy flag in daemon and VM launch path.
+- [x] Prevent fallback to host backend when strict egress is requested.
+- [x] Add e2e bypass regression test (`TestE2EBypassProxyDenied`).
+
+### Slice N2 — DNS profiles
+**Goal:** Make DNS handling explicit and policy-controlled.
+- [x] `open`: compatibility resolver path.
+- [x] `trusted`: resolver pinned to `trusted_dns_servers`.
+- [x] `synthetic`: external DNS lookups blocked in proxy path.
+- ✅ Automated tests: `TestE2EDNSModeSyntheticBlocksExfil`, `TestE2EDNSModeTrustedUsesAllowedResolvers`.
+
+### Slice N3 — Observability & migration docs
+**Goal:** expose enforcement posture and blocked counters.
+- [x] Add structured network logs (`network_enforcement`, `dns_mode`).
+- [x] Add blocked counters (`blocked_egress`, `dns_blocked`) on proxy shutdown.
+- [x] Add README migration notes for compat → strict.
+
 ### Slice 7 — WSL2 bootstrap
 **Goal:** Windows support via WSL2.
 - [x] Windows CLI bootstraps WSL2 distro and daemon.
@@ -464,6 +490,8 @@ klitka/
 ## 12. Acceptance Criteria
 - SDK `start/exec/shell/close` works identically on macOS, Linux, and Windows via WSL2.
 - Network allowlist enforced for HTTP/HTTPS.
+- Strict egress mode blocks direct bypass of host policy path.
+- DNS profiles (`open|trusted|synthetic`) behave as configured.
 - DNS rebind protection works.
 - Read‑only mounts enforced.
 - Secrets injected only for allowed hosts.

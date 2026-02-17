@@ -14,6 +14,14 @@ import (
 )
 
 func TestE2ESecretInjection(t *testing.T) {
+	runSecretInjectionWithMode(t, "compat")
+}
+
+func TestE2ESecretInjectionStrict(t *testing.T) {
+	runSecretInjectionWithMode(t, "strict")
+}
+
+func runSecretInjectionWithMode(t *testing.T, egressMode string) {
 	requireVMBackend(t)
 	t.Setenv("KLITKA_PROXY_INSECURE", "1")
 
@@ -21,12 +29,12 @@ func TestE2ESecretInjection(t *testing.T) {
 		fsBackend := fsBackend
 		t.Run("fs_backend="+fsBackend, func(t *testing.T) {
 			t.Setenv("KLITKA_FS_BACKEND", fsBackend)
-			runSecretInjectionScenario(t)
+			runSecretInjectionScenario(t, egressMode)
 		})
 	}
 }
 
-func runSecretInjectionScenario(t *testing.T) {
+func runSecretInjectionScenario(t *testing.T, egressMode string) {
 	t.Helper()
 
 	addr := startTestDaemon(t)
@@ -53,6 +61,7 @@ func runSecretInjectionScenario(t *testing.T) {
 	args := []string{
 		"--allow-host", host,
 		"--block-private=false",
+		"--egress-mode", egressMode,
 		"--secret", fmt.Sprintf("API_KEY@%s=%s", host, secret),
 		"--",
 		"sh", "-c", script,

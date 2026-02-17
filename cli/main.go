@@ -50,9 +50,9 @@ func main() {
 
 func printUsage() {
 	fmt.Println("Usage:")
-	fmt.Println("  klitka exec [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--secret NAME@host[,host...][:header][:format][=VALUE]] [--socket path | --tcp host:port] -- <command>")
-	fmt.Println("  klitka shell [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--secret NAME@host[,host...][:header][:format][=VALUE]] [--socket path | --tcp host:port]")
-	fmt.Println("  klitka start [--mount host:guest[:ro|rw]] [--allow-host host] [--block-private=false] [--secret NAME@host[,host...][:header][:format][=VALUE]] [--socket path | --tcp host:port]")
+	fmt.Println("  klitka exec [--mount host:guest[:ro|rw]] [--allow-host host] [--deny-host host] [--block-private=false] [--egress-mode compat|strict] [--dns-mode open|trusted|synthetic] [--trusted-dns host[:port]] [--secret NAME@host[,host...][:header][:format][=VALUE]] [--socket path | --tcp host:port] -- <command>")
+	fmt.Println("  klitka shell [--mount host:guest[:ro|rw]] [--allow-host host] [--deny-host host] [--block-private=false] [--egress-mode compat|strict] [--dns-mode open|trusted|synthetic] [--trusted-dns host[:port]] [--secret NAME@host[,host...][:header][:format][=VALUE]] [--socket path | --tcp host:port]")
+	fmt.Println("  klitka start [--mount host:guest[:ro|rw]] [--allow-host host] [--deny-host host] [--block-private=false] [--egress-mode compat|strict] [--dns-mode open|trusted|synthetic] [--trusted-dns host[:port]] [--secret NAME@host[,host...][:header][:format][=VALUE]] [--socket path | --tcp host:port]")
 	fmt.Println("  klitka stop --id <vm-id> [--socket path | --tcp host:port]")
 }
 
@@ -60,12 +60,18 @@ func execCommand(args []string) {
 	fs := flag.NewFlagSet("exec", flag.ExitOnError)
 	mountArgs := mountFlag{}
 	allowHosts := stringSliceFlag{}
+	denyHosts := stringSliceFlag{}
+	trustedDNS := stringSliceFlag{}
 	secretArgs := stringSliceFlag{}
 	blockPrivate := fs.Bool("block-private", true, "block private IP ranges when using network allowlist")
+	egressMode := fs.String("egress-mode", "compat", "network egress mode: compat|strict")
+	dnsMode := fs.String("dns-mode", "open", "dns mode: open|trusted|synthetic")
 	socket := fs.String("socket", socketDefault(), "unix socket path")
 	tcp := fs.String("tcp", tcpDefault(), "tcp address host:port")
 	fs.Var(&mountArgs, "mount", "mount in format host:guest[:ro|rw]")
 	fs.Var(&allowHosts, "allow-host", "allow outbound HTTP(S) to host (repeatable)")
+	fs.Var(&denyHosts, "deny-host", "deny outbound HTTP(S) to host (repeatable)")
+	fs.Var(&trustedDNS, "trusted-dns", "trusted DNS resolver host[:port] for --dns-mode=trusted (repeatable)")
 	fs.Var(&secretArgs, "secret", "secret in format NAME@host[,host...][:header][:format][=VALUE] (VALUE defaults to $NAME)")
 	fs.Parse(args)
 
@@ -96,7 +102,10 @@ func execCommand(args []string) {
 		log.Fatalf("invalid secret flag: %v", err)
 	}
 
-	networkPolicy := buildNetworkPolicy(allowHosts, *blockPrivate)
+	networkPolicy, err := buildNetworkPolicy(allowHosts, denyHosts, trustedDNS, *blockPrivate, *egressMode, *dnsMode)
+	if err != nil {
+		log.Fatalf("invalid network flags: %v", err)
+	}
 	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkav1.StartVMRequest{
 		Mounts:  mounts,
 		Network: networkPolicy,
@@ -153,12 +162,18 @@ func shellCommand(args []string) {
 	fs := flag.NewFlagSet("shell", flag.ExitOnError)
 	mountArgs := mountFlag{}
 	allowHosts := stringSliceFlag{}
+	denyHosts := stringSliceFlag{}
+	trustedDNS := stringSliceFlag{}
 	secretArgs := stringSliceFlag{}
 	blockPrivate := fs.Bool("block-private", true, "block private IP ranges when using network allowlist")
+	egressMode := fs.String("egress-mode", "compat", "network egress mode: compat|strict")
+	dnsMode := fs.String("dns-mode", "open", "dns mode: open|trusted|synthetic")
 	socket := fs.String("socket", socketDefault(), "unix socket path")
 	tcp := fs.String("tcp", tcpDefault(), "tcp address host:port")
 	fs.Var(&mountArgs, "mount", "mount in format host:guest[:ro|rw]")
 	fs.Var(&allowHosts, "allow-host", "allow outbound HTTP(S) to host (repeatable)")
+	fs.Var(&denyHosts, "deny-host", "deny outbound HTTP(S) to host (repeatable)")
+	fs.Var(&trustedDNS, "trusted-dns", "trusted DNS resolver host[:port] for --dns-mode=trusted (repeatable)")
 	fs.Var(&secretArgs, "secret", "secret in format NAME@host[,host...][:header][:format][=VALUE] (VALUE defaults to $NAME)")
 	fs.Parse(args)
 
@@ -183,7 +198,10 @@ func shellCommand(args []string) {
 		log.Fatalf("invalid secret flag: %v", err)
 	}
 
-	networkPolicy := buildNetworkPolicy(allowHosts, *blockPrivate)
+	networkPolicy, err := buildNetworkPolicy(allowHosts, denyHosts, trustedDNS, *blockPrivate, *egressMode, *dnsMode)
+	if err != nil {
+		log.Fatalf("invalid network flags: %v", err)
+	}
 	startResp, err := client.StartVM(ctx, connect.NewRequest(&klitkav1.StartVMRequest{
 		Mounts:  mounts,
 		Network: networkPolicy,
@@ -335,12 +353,18 @@ func startCommand(args []string) {
 	fs := flag.NewFlagSet("start", flag.ExitOnError)
 	mountArgs := mountFlag{}
 	allowHosts := stringSliceFlag{}
+	denyHosts := stringSliceFlag{}
+	trustedDNS := stringSliceFlag{}
 	secretArgs := stringSliceFlag{}
 	blockPrivate := fs.Bool("block-private", true, "block private IP ranges when using network allowlist")
+	egressMode := fs.String("egress-mode", "compat", "network egress mode: compat|strict")
+	dnsMode := fs.String("dns-mode", "open", "dns mode: open|trusted|synthetic")
 	socket := fs.String("socket", socketDefault(), "unix socket path")
 	tcp := fs.String("tcp", tcpDefault(), "tcp address host:port")
 	fs.Var(&mountArgs, "mount", "mount in format host:guest[:ro|rw]")
 	fs.Var(&allowHosts, "allow-host", "allow outbound HTTP(S) to host (repeatable)")
+	fs.Var(&denyHosts, "deny-host", "deny outbound HTTP(S) to host (repeatable)")
+	fs.Var(&trustedDNS, "trusted-dns", "trusted DNS resolver host[:port] for --dns-mode=trusted (repeatable)")
 	fs.Var(&secretArgs, "secret", "secret in format NAME@host[,host...][:header][:format][=VALUE] (VALUE defaults to $NAME)")
 	fs.Parse(args)
 
@@ -365,7 +389,10 @@ func startCommand(args []string) {
 		log.Fatalf("invalid secret flag: %v", err)
 	}
 
-	networkPolicy := buildNetworkPolicy(allowHosts, *blockPrivate)
+	networkPolicy, err := buildNetworkPolicy(allowHosts, denyHosts, trustedDNS, *blockPrivate, *egressMode, *dnsMode)
+	if err != nil {
+		log.Fatalf("invalid network flags: %v", err)
+	}
 	resp, err := client.StartVM(ctx, connect.NewRequest(&klitkav1.StartVMRequest{
 		Mounts:  mounts,
 		Network: networkPolicy,
@@ -589,27 +616,90 @@ func parseSecretFormat(raw string) (klitkav1.SecretFormat, error) {
 	}
 }
 
-func buildNetworkPolicy(allowHosts stringSliceFlag, blockPrivate bool) *klitkav1.NetworkPolicy {
-	if len(allowHosts) == 0 {
-		return nil
+func buildNetworkPolicy(
+	allowHosts stringSliceFlag,
+	denyHosts stringSliceFlag,
+	trustedDNS stringSliceFlag,
+	blockPrivate bool,
+	egressModeRaw string,
+	dnsModeRaw string,
+) (*klitkav1.NetworkPolicy, error) {
+	egressMode, err := parseEgressMode(egressModeRaw)
+	if err != nil {
+		return nil, err
+	}
+	dnsMode, err := parseDNSMode(dnsModeRaw)
+	if err != nil {
+		return nil, err
 	}
 
-	hosts := make([]string, 0, len(allowHosts))
-	for _, host := range allowHosts {
-		host = strings.TrimSpace(host)
-		if host == "" {
-			continue
-		}
-		hosts = append(hosts, host)
+	allow := nonEmptyStrings(allowHosts)
+	deny := nonEmptyStrings(denyHosts)
+	trusted := nonEmptyStrings(trustedDNS)
+
+	if dnsMode == klitkav1.DNSMode_DNS_MODE_TRUSTED && len(trusted) == 0 {
+		return nil, fmt.Errorf("trusted dns mode requires at least one --trusted-dns")
 	}
-	if len(hosts) == 0 {
-		return nil
+	if dnsMode != klitkav1.DNSMode_DNS_MODE_TRUSTED && len(trusted) > 0 {
+		return nil, fmt.Errorf("--trusted-dns is only supported with --dns-mode=trusted")
+	}
+
+	hasPolicy := len(allow) > 0 || len(deny) > 0 || len(trusted) > 0 || !blockPrivate ||
+		egressMode != klitkav1.EgressMode_EGRESS_MODE_COMPAT || dnsMode != klitkav1.DNSMode_DNS_MODE_OPEN
+	if !hasPolicy {
+		return nil, nil
 	}
 
 	return &klitkav1.NetworkPolicy{
-		AllowHosts:         hosts,
+		AllowHosts:         allow,
+		DenyHosts:          deny,
 		BlockPrivateRanges: blockPrivate,
+		EgressMode:         egressMode,
+		DnsMode:            dnsMode,
+		TrustedDnsServers:  trusted,
+	}, nil
+}
+
+func parseEgressMode(raw string) (klitkav1.EgressMode, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", "compat":
+		return klitkav1.EgressMode_EGRESS_MODE_COMPAT, nil
+	case "strict":
+		return klitkav1.EgressMode_EGRESS_MODE_STRICT, nil
+	default:
+		return klitkav1.EgressMode_EGRESS_MODE_UNSPECIFIED, fmt.Errorf("invalid egress mode: %q", raw)
 	}
+}
+
+func parseDNSMode(raw string) (klitkav1.DNSMode, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", "open":
+		return klitkav1.DNSMode_DNS_MODE_OPEN, nil
+	case "trusted":
+		return klitkav1.DNSMode_DNS_MODE_TRUSTED, nil
+	case "synthetic":
+		return klitkav1.DNSMode_DNS_MODE_SYNTHETIC, nil
+	default:
+		return klitkav1.DNSMode_DNS_MODE_UNSPECIFIED, fmt.Errorf("invalid dns mode: %q", raw)
+	}
+}
+
+func nonEmptyStrings(values stringSliceFlag) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		out = append(out, value)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 type daemonConnection struct {

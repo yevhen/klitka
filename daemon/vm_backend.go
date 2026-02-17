@@ -102,7 +102,7 @@ func newVMBackend(id string, req *klitkav1.StartVMRequest, env []string, network
 	}
 
 	append := buildKernelAppend(assets.append, appendArgs)
-	cmd := exec.Command(qemuPath, buildQemuArgs(assets, socketPath, append, mountArgs, machineType)...)
+	cmd := exec.Command(qemuPath, buildQemuArgs(assets, socketPath, append, mountArgs, machineType, network)...)
 	cmd.Stdout = qemuOutputWriter()
 	cmd.Stderr = qemuOutputWriter()
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -417,7 +417,7 @@ func buildKernelAppend(base string, extras []string) string {
 	return strings.TrimSpace(base + " " + strings.Join(extras, " "))
 }
 
-func buildQemuArgs(assets guestAssets, socketPath string, appendArg string, mountArgs []string, machineType string) []string {
+func buildQemuArgs(assets guestAssets, socketPath string, appendArg string, mountArgs []string, machineType string, network *networkManager) []string {
 	args := []string{
 		"-nodefaults",
 		"-no-reboot",
@@ -450,9 +450,10 @@ func buildQemuArgs(assets guestAssets, socketPath string, appendArg string, moun
 
 	serialDevice, serialPort := virtioSerialArgs(machineType)
 
+	netdev := buildQemuNetdevArg(network)
 	args = append(args,
 		"-netdev",
-		"user,id=net0",
+		netdev,
 		"-device",
 		netDeviceArg(machineType),
 		"-chardev",
@@ -695,6 +696,10 @@ func kvmAvailable() bool {
 	}
 	_ = fd.Close()
 	return true
+}
+
+func buildQemuNetdevArg(_ *networkManager) string {
+	return "user,id=net0"
 }
 
 func netDeviceArg(machineType string) string {

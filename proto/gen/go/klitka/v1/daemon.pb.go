@@ -21,6 +21,107 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type EgressMode int32
+
+const (
+	EgressMode_EGRESS_MODE_UNSPECIFIED EgressMode = 0
+	EgressMode_EGRESS_MODE_COMPAT      EgressMode = 1
+	EgressMode_EGRESS_MODE_STRICT      EgressMode = 2
+)
+
+// Enum value maps for EgressMode.
+var (
+	EgressMode_name = map[int32]string{
+		0: "EGRESS_MODE_UNSPECIFIED",
+		1: "EGRESS_MODE_COMPAT",
+		2: "EGRESS_MODE_STRICT",
+	}
+	EgressMode_value = map[string]int32{
+		"EGRESS_MODE_UNSPECIFIED": 0,
+		"EGRESS_MODE_COMPAT":      1,
+		"EGRESS_MODE_STRICT":      2,
+	}
+)
+
+func (x EgressMode) Enum() *EgressMode {
+	p := new(EgressMode)
+	*p = x
+	return p
+}
+
+func (x EgressMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (EgressMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_klitka_v1_daemon_proto_enumTypes[0].Descriptor()
+}
+
+func (EgressMode) Type() protoreflect.EnumType {
+	return &file_klitka_v1_daemon_proto_enumTypes[0]
+}
+
+func (x EgressMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use EgressMode.Descriptor instead.
+func (EgressMode) EnumDescriptor() ([]byte, []int) {
+	return file_klitka_v1_daemon_proto_rawDescGZIP(), []int{0}
+}
+
+type DNSMode int32
+
+const (
+	DNSMode_DNS_MODE_UNSPECIFIED DNSMode = 0
+	DNSMode_DNS_MODE_OPEN        DNSMode = 1
+	DNSMode_DNS_MODE_TRUSTED     DNSMode = 2
+	DNSMode_DNS_MODE_SYNTHETIC   DNSMode = 3
+)
+
+// Enum value maps for DNSMode.
+var (
+	DNSMode_name = map[int32]string{
+		0: "DNS_MODE_UNSPECIFIED",
+		1: "DNS_MODE_OPEN",
+		2: "DNS_MODE_TRUSTED",
+		3: "DNS_MODE_SYNTHETIC",
+	}
+	DNSMode_value = map[string]int32{
+		"DNS_MODE_UNSPECIFIED": 0,
+		"DNS_MODE_OPEN":        1,
+		"DNS_MODE_TRUSTED":     2,
+		"DNS_MODE_SYNTHETIC":   3,
+	}
+)
+
+func (x DNSMode) Enum() *DNSMode {
+	p := new(DNSMode)
+	*p = x
+	return p
+}
+
+func (x DNSMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (DNSMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_klitka_v1_daemon_proto_enumTypes[1].Descriptor()
+}
+
+func (DNSMode) Type() protoreflect.EnumType {
+	return &file_klitka_v1_daemon_proto_enumTypes[1]
+}
+
+func (x DNSMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use DNSMode.Descriptor instead.
+func (DNSMode) EnumDescriptor() ([]byte, []int) {
+	return file_klitka_v1_daemon_proto_rawDescGZIP(), []int{1}
+}
+
 type SecretFormat int32
 
 const (
@@ -54,11 +155,11 @@ func (x SecretFormat) String() string {
 }
 
 func (SecretFormat) Descriptor() protoreflect.EnumDescriptor {
-	return file_klitka_v1_daemon_proto_enumTypes[0].Descriptor()
+	return file_klitka_v1_daemon_proto_enumTypes[2].Descriptor()
 }
 
 func (SecretFormat) Type() protoreflect.EnumType {
-	return &file_klitka_v1_daemon_proto_enumTypes[0]
+	return &file_klitka_v1_daemon_proto_enumTypes[2]
 }
 
 func (x SecretFormat) Number() protoreflect.EnumNumber {
@@ -67,7 +168,7 @@ func (x SecretFormat) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use SecretFormat.Descriptor instead.
 func (SecretFormat) EnumDescriptor() ([]byte, []int) {
-	return file_klitka_v1_daemon_proto_rawDescGZIP(), []int{0}
+	return file_klitka_v1_daemon_proto_rawDescGZIP(), []int{2}
 }
 
 type MountMode int32
@@ -103,11 +204,11 @@ func (x MountMode) String() string {
 }
 
 func (MountMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_klitka_v1_daemon_proto_enumTypes[1].Descriptor()
+	return file_klitka_v1_daemon_proto_enumTypes[3].Descriptor()
 }
 
 func (MountMode) Type() protoreflect.EnumType {
-	return &file_klitka_v1_daemon_proto_enumTypes[1]
+	return &file_klitka_v1_daemon_proto_enumTypes[3]
 }
 
 func (x MountMode) Number() protoreflect.EnumNumber {
@@ -116,7 +217,7 @@ func (x MountMode) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use MountMode.Descriptor instead.
 func (MountMode) EnumDescriptor() ([]byte, []int) {
-	return file_klitka_v1_daemon_proto_rawDescGZIP(), []int{1}
+	return file_klitka_v1_daemon_proto_rawDescGZIP(), []int{3}
 }
 
 type StartVMRequest struct {
@@ -184,6 +285,9 @@ type NetworkPolicy struct {
 	AllowHosts         []string               `protobuf:"bytes,1,rep,name=allow_hosts,json=allowHosts,proto3" json:"allow_hosts,omitempty"`
 	DenyHosts          []string               `protobuf:"bytes,2,rep,name=deny_hosts,json=denyHosts,proto3" json:"deny_hosts,omitempty"`
 	BlockPrivateRanges bool                   `protobuf:"varint,3,opt,name=block_private_ranges,json=blockPrivateRanges,proto3" json:"block_private_ranges,omitempty"`
+	EgressMode         EgressMode             `protobuf:"varint,4,opt,name=egress_mode,json=egressMode,proto3,enum=klitka.v1.EgressMode" json:"egress_mode,omitempty"`
+	DnsMode            DNSMode                `protobuf:"varint,5,opt,name=dns_mode,json=dnsMode,proto3,enum=klitka.v1.DNSMode" json:"dns_mode,omitempty"`
+	TrustedDnsServers  []string               `protobuf:"bytes,6,rep,name=trusted_dns_servers,json=trustedDnsServers,proto3" json:"trusted_dns_servers,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -237,6 +341,27 @@ func (x *NetworkPolicy) GetBlockPrivateRanges() bool {
 		return x.BlockPrivateRanges
 	}
 	return false
+}
+
+func (x *NetworkPolicy) GetEgressMode() EgressMode {
+	if x != nil {
+		return x.EgressMode
+	}
+	return EgressMode_EGRESS_MODE_UNSPECIFIED
+}
+
+func (x *NetworkPolicy) GetDnsMode() DNSMode {
+	if x != nil {
+		return x.DnsMode
+	}
+	return DNSMode_DNS_MODE_UNSPECIFIED
+}
+
+func (x *NetworkPolicy) GetTrustedDnsServers() []string {
+	if x != nil {
+		return x.TrustedDnsServers
+	}
+	return nil
 }
 
 type Secret struct {
@@ -1075,13 +1200,17 @@ const file_klitka_v1_daemon_proto_rawDesc = "" +
 	"\x0eStartVMRequest\x12(\n" +
 	"\x06mounts\x18\x01 \x03(\v2\x10.klitka.v1.MountR\x06mounts\x122\n" +
 	"\anetwork\x18\x02 \x01(\v2\x18.klitka.v1.NetworkPolicyR\anetwork\x12+\n" +
-	"\asecrets\x18\x03 \x03(\v2\x11.klitka.v1.SecretR\asecrets\"\x81\x01\n" +
+	"\asecrets\x18\x03 \x03(\v2\x11.klitka.v1.SecretR\asecrets\"\x98\x02\n" +
 	"\rNetworkPolicy\x12\x1f\n" +
 	"\vallow_hosts\x18\x01 \x03(\tR\n" +
 	"allowHosts\x12\x1d\n" +
 	"\n" +
 	"deny_hosts\x18\x02 \x03(\tR\tdenyHosts\x120\n" +
-	"\x14block_private_ranges\x18\x03 \x01(\bR\x12blockPrivateRanges\"\x91\x01\n" +
+	"\x14block_private_ranges\x18\x03 \x01(\bR\x12blockPrivateRanges\x126\n" +
+	"\vegress_mode\x18\x04 \x01(\x0e2\x15.klitka.v1.EgressModeR\n" +
+	"egressMode\x12-\n" +
+	"\bdns_mode\x18\x05 \x01(\x0e2\x12.klitka.v1.DNSModeR\adnsMode\x12.\n" +
+	"\x13trusted_dns_servers\x18\x06 \x03(\tR\x11trustedDnsServers\"\x91\x01\n" +
 	"\x06Secret\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05hosts\x18\x02 \x03(\tR\x05hosts\x12\x14\n" +
@@ -1131,7 +1260,17 @@ const file_klitka_v1_daemon_proto_rawDesc = "" +
 	"\texit_code\x18\x01 \x01(\x05R\bexitCode\"$\n" +
 	"\rStopVMRequest\x12\x13\n" +
 	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\"\x10\n" +
-	"\x0eStopVMResponse*^\n" +
+	"\x0eStopVMResponse*Y\n" +
+	"\n" +
+	"EgressMode\x12\x1b\n" +
+	"\x17EGRESS_MODE_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12EGRESS_MODE_COMPAT\x10\x01\x12\x16\n" +
+	"\x12EGRESS_MODE_STRICT\x10\x02*d\n" +
+	"\aDNSMode\x12\x18\n" +
+	"\x14DNS_MODE_UNSPECIFIED\x10\x00\x12\x11\n" +
+	"\rDNS_MODE_OPEN\x10\x01\x12\x14\n" +
+	"\x10DNS_MODE_TRUSTED\x10\x02\x12\x16\n" +
+	"\x12DNS_MODE_SYNTHETIC\x10\x03*^\n" +
 	"\fSecretFormat\x12\x1d\n" +
 	"\x19SECRET_FORMAT_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14SECRET_FORMAT_BEARER\x10\x01\x12\x15\n" +
@@ -1159,52 +1298,56 @@ func file_klitka_v1_daemon_proto_rawDescGZIP() []byte {
 	return file_klitka_v1_daemon_proto_rawDescData
 }
 
-var file_klitka_v1_daemon_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_klitka_v1_daemon_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
 var file_klitka_v1_daemon_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_klitka_v1_daemon_proto_goTypes = []any{
-	(SecretFormat)(0),          // 0: klitka.v1.SecretFormat
-	(MountMode)(0),             // 1: klitka.v1.MountMode
-	(*StartVMRequest)(nil),     // 2: klitka.v1.StartVMRequest
-	(*NetworkPolicy)(nil),      // 3: klitka.v1.NetworkPolicy
-	(*Secret)(nil),             // 4: klitka.v1.Secret
-	(*Mount)(nil),              // 5: klitka.v1.Mount
-	(*StartVMResponse)(nil),    // 6: klitka.v1.StartVMResponse
-	(*ExecRequest)(nil),        // 7: klitka.v1.ExecRequest
-	(*ExecResponse)(nil),       // 8: klitka.v1.ExecResponse
-	(*ExecStreamRequest)(nil),  // 9: klitka.v1.ExecStreamRequest
-	(*ExecStreamResponse)(nil), // 10: klitka.v1.ExecStreamResponse
-	(*ExecStart)(nil),          // 11: klitka.v1.ExecStart
-	(*ExecInput)(nil),          // 12: klitka.v1.ExecInput
-	(*PtyResize)(nil),          // 13: klitka.v1.PtyResize
-	(*ExecOutput)(nil),         // 14: klitka.v1.ExecOutput
-	(*ExecExit)(nil),           // 15: klitka.v1.ExecExit
-	(*StopVMRequest)(nil),      // 16: klitka.v1.StopVMRequest
-	(*StopVMResponse)(nil),     // 17: klitka.v1.StopVMResponse
+	(EgressMode)(0),            // 0: klitka.v1.EgressMode
+	(DNSMode)(0),               // 1: klitka.v1.DNSMode
+	(SecretFormat)(0),          // 2: klitka.v1.SecretFormat
+	(MountMode)(0),             // 3: klitka.v1.MountMode
+	(*StartVMRequest)(nil),     // 4: klitka.v1.StartVMRequest
+	(*NetworkPolicy)(nil),      // 5: klitka.v1.NetworkPolicy
+	(*Secret)(nil),             // 6: klitka.v1.Secret
+	(*Mount)(nil),              // 7: klitka.v1.Mount
+	(*StartVMResponse)(nil),    // 8: klitka.v1.StartVMResponse
+	(*ExecRequest)(nil),        // 9: klitka.v1.ExecRequest
+	(*ExecResponse)(nil),       // 10: klitka.v1.ExecResponse
+	(*ExecStreamRequest)(nil),  // 11: klitka.v1.ExecStreamRequest
+	(*ExecStreamResponse)(nil), // 12: klitka.v1.ExecStreamResponse
+	(*ExecStart)(nil),          // 13: klitka.v1.ExecStart
+	(*ExecInput)(nil),          // 14: klitka.v1.ExecInput
+	(*PtyResize)(nil),          // 15: klitka.v1.PtyResize
+	(*ExecOutput)(nil),         // 16: klitka.v1.ExecOutput
+	(*ExecExit)(nil),           // 17: klitka.v1.ExecExit
+	(*StopVMRequest)(nil),      // 18: klitka.v1.StopVMRequest
+	(*StopVMResponse)(nil),     // 19: klitka.v1.StopVMResponse
 }
 var file_klitka_v1_daemon_proto_depIdxs = []int32{
-	5,  // 0: klitka.v1.StartVMRequest.mounts:type_name -> klitka.v1.Mount
-	3,  // 1: klitka.v1.StartVMRequest.network:type_name -> klitka.v1.NetworkPolicy
-	4,  // 2: klitka.v1.StartVMRequest.secrets:type_name -> klitka.v1.Secret
-	0,  // 3: klitka.v1.Secret.format:type_name -> klitka.v1.SecretFormat
-	1,  // 4: klitka.v1.Mount.mode:type_name -> klitka.v1.MountMode
-	11, // 5: klitka.v1.ExecStreamRequest.start:type_name -> klitka.v1.ExecStart
-	12, // 6: klitka.v1.ExecStreamRequest.input:type_name -> klitka.v1.ExecInput
-	13, // 7: klitka.v1.ExecStreamRequest.resize:type_name -> klitka.v1.PtyResize
-	14, // 8: klitka.v1.ExecStreamResponse.output:type_name -> klitka.v1.ExecOutput
-	15, // 9: klitka.v1.ExecStreamResponse.exit:type_name -> klitka.v1.ExecExit
-	2,  // 10: klitka.v1.DaemonService.StartVM:input_type -> klitka.v1.StartVMRequest
-	7,  // 11: klitka.v1.DaemonService.Exec:input_type -> klitka.v1.ExecRequest
-	9,  // 12: klitka.v1.DaemonService.ExecStream:input_type -> klitka.v1.ExecStreamRequest
-	16, // 13: klitka.v1.DaemonService.StopVM:input_type -> klitka.v1.StopVMRequest
-	6,  // 14: klitka.v1.DaemonService.StartVM:output_type -> klitka.v1.StartVMResponse
-	8,  // 15: klitka.v1.DaemonService.Exec:output_type -> klitka.v1.ExecResponse
-	10, // 16: klitka.v1.DaemonService.ExecStream:output_type -> klitka.v1.ExecStreamResponse
-	17, // 17: klitka.v1.DaemonService.StopVM:output_type -> klitka.v1.StopVMResponse
-	14, // [14:18] is the sub-list for method output_type
-	10, // [10:14] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	7,  // 0: klitka.v1.StartVMRequest.mounts:type_name -> klitka.v1.Mount
+	5,  // 1: klitka.v1.StartVMRequest.network:type_name -> klitka.v1.NetworkPolicy
+	6,  // 2: klitka.v1.StartVMRequest.secrets:type_name -> klitka.v1.Secret
+	0,  // 3: klitka.v1.NetworkPolicy.egress_mode:type_name -> klitka.v1.EgressMode
+	1,  // 4: klitka.v1.NetworkPolicy.dns_mode:type_name -> klitka.v1.DNSMode
+	2,  // 5: klitka.v1.Secret.format:type_name -> klitka.v1.SecretFormat
+	3,  // 6: klitka.v1.Mount.mode:type_name -> klitka.v1.MountMode
+	13, // 7: klitka.v1.ExecStreamRequest.start:type_name -> klitka.v1.ExecStart
+	14, // 8: klitka.v1.ExecStreamRequest.input:type_name -> klitka.v1.ExecInput
+	15, // 9: klitka.v1.ExecStreamRequest.resize:type_name -> klitka.v1.PtyResize
+	16, // 10: klitka.v1.ExecStreamResponse.output:type_name -> klitka.v1.ExecOutput
+	17, // 11: klitka.v1.ExecStreamResponse.exit:type_name -> klitka.v1.ExecExit
+	4,  // 12: klitka.v1.DaemonService.StartVM:input_type -> klitka.v1.StartVMRequest
+	9,  // 13: klitka.v1.DaemonService.Exec:input_type -> klitka.v1.ExecRequest
+	11, // 14: klitka.v1.DaemonService.ExecStream:input_type -> klitka.v1.ExecStreamRequest
+	18, // 15: klitka.v1.DaemonService.StopVM:input_type -> klitka.v1.StopVMRequest
+	8,  // 16: klitka.v1.DaemonService.StartVM:output_type -> klitka.v1.StartVMResponse
+	10, // 17: klitka.v1.DaemonService.Exec:output_type -> klitka.v1.ExecResponse
+	12, // 18: klitka.v1.DaemonService.ExecStream:output_type -> klitka.v1.ExecStreamResponse
+	19, // 19: klitka.v1.DaemonService.StopVM:output_type -> klitka.v1.StopVMResponse
+	16, // [16:20] is the sub-list for method output_type
+	12, // [12:16] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_klitka_v1_daemon_proto_init() }
@@ -1226,7 +1369,7 @@ func file_klitka_v1_daemon_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_klitka_v1_daemon_proto_rawDesc), len(file_klitka_v1_daemon_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      4,
 			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,

@@ -43,7 +43,15 @@ func newVM(id string, req *klitkav1.StartVMRequest) (*VM, error) {
 		env = network.env
 	}
 
+	strictEgress := requiresStrictEgress(req)
 	mode := backendModeFromEnv()
+	if strictEgress && mode == backendHost {
+		if network != nil {
+			_ = network.Close()
+		}
+		return nil, fmt.Errorf("strict egress requires VM backend")
+	}
+
 	if mode == backendVM || mode == backendAuto {
 		backend, err := newVMBackend(id, req, env, network)
 		if err == nil {
@@ -60,6 +68,12 @@ func newVM(id string, req *klitkav1.StartVMRequest) (*VM, error) {
 				_ = network.Close()
 			}
 			return nil, err
+		}
+		if strictEgress {
+			if network != nil {
+				_ = network.Close()
+			}
+			return nil, fmt.Errorf("strict egress requires VM backend: %w", err)
 		}
 	}
 
@@ -93,4 +107,15 @@ func vmUnavailable(message string) error {
 		return ErrVMUnavailable
 	}
 	return fmt.Errorf("%w: %s", ErrVMUnavailable, message)
+}
+
+func requiresStrictEgress(req *klitkav1.StartVMRequest) bool {
+	if req == nil {
+		return false
+	}
+	network := req.GetNetwork()
+	if network == nil {
+		return false
+	}
+	return network.GetEgressMode() == klitkav1.EgressMode_EGRESS_MODE_STRICT
 }

@@ -23,6 +23,22 @@ message NetworkPolicy {
   repeated string allow_hosts = 1;
   repeated string deny_hosts = 2;
   bool block_private_ranges = 3;
+  EgressMode egress_mode = 4;
+  DNSMode dns_mode = 5;
+  repeated string trusted_dns_servers = 6;
+}
+
+enum EgressMode {
+  EGRESS_MODE_UNSPECIFIED = 0;
+  EGRESS_MODE_COMPAT = 1;
+  EGRESS_MODE_STRICT = 2;
+}
+
+enum DNSMode {
+  DNS_MODE_UNSPECIFIED = 0;
+  DNS_MODE_OPEN = 1;
+  DNS_MODE_TRUSTED = 2;
+  DNS_MODE_SYNTHETIC = 3;
 }
 
 enum SecretFormat {

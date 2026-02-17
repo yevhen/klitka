@@ -7,6 +7,64 @@ import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialM
 import { Message, proto3 } from "@bufbuild/protobuf";
 
 /**
+ * @generated from enum klitka.v1.EgressMode
+ */
+export enum EgressMode {
+  /**
+   * @generated from enum value: EGRESS_MODE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: EGRESS_MODE_COMPAT = 1;
+   */
+  COMPAT = 1,
+
+  /**
+   * @generated from enum value: EGRESS_MODE_STRICT = 2;
+   */
+  STRICT = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(EgressMode)
+proto3.util.setEnumType(EgressMode, "klitka.v1.EgressMode", [
+  { no: 0, name: "EGRESS_MODE_UNSPECIFIED" },
+  { no: 1, name: "EGRESS_MODE_COMPAT" },
+  { no: 2, name: "EGRESS_MODE_STRICT" },
+]);
+
+/**
+ * @generated from enum klitka.v1.DNSMode
+ */
+export enum DNSMode {
+  /**
+   * @generated from enum value: DNS_MODE_UNSPECIFIED = 0;
+   */
+  DNS_MODE_UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: DNS_MODE_OPEN = 1;
+   */
+  DNS_MODE_OPEN = 1,
+
+  /**
+   * @generated from enum value: DNS_MODE_TRUSTED = 2;
+   */
+  DNS_MODE_TRUSTED = 2,
+
+  /**
+   * @generated from enum value: DNS_MODE_SYNTHETIC = 3;
+   */
+  DNS_MODE_SYNTHETIC = 3,
+}
+// Retrieve enum metadata with: proto3.getEnumType(DNSMode)
+proto3.util.setEnumType(DNSMode, "klitka.v1.DNSMode", [
+  { no: 0, name: "DNS_MODE_UNSPECIFIED" },
+  { no: 1, name: "DNS_MODE_OPEN" },
+  { no: 2, name: "DNS_MODE_TRUSTED" },
+  { no: 3, name: "DNS_MODE_SYNTHETIC" },
+]);
+
+/**
  * @generated from enum klitka.v1.SecretFormat
  */
 export enum SecretFormat {
@@ -126,6 +184,21 @@ export class NetworkPolicy extends Message<NetworkPolicy> {
    */
   blockPrivateRanges = false;
 
+  /**
+   * @generated from field: klitka.v1.EgressMode egress_mode = 4;
+   */
+  egressMode = EgressMode.UNSPECIFIED;
+
+  /**
+   * @generated from field: klitka.v1.DNSMode dns_mode = 5;
+   */
+  dnsMode = DNSMode.DNS_MODE_UNSPECIFIED;
+
+  /**
+   * @generated from field: repeated string trusted_dns_servers = 6;
+   */
+  trustedDnsServers: string[] = [];
+
   constructor(data?: PartialMessage<NetworkPolicy>) {
     super();
     proto3.util.initPartial(data, this);
@@ -137,6 +210,9 @@ export class NetworkPolicy extends Message<NetworkPolicy> {
     { no: 1, name: "allow_hosts", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 2, name: "deny_hosts", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 3, name: "block_private_ranges", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 4, name: "egress_mode", kind: "enum", T: proto3.getEnumType(EgressMode) },
+    { no: 5, name: "dns_mode", kind: "enum", T: proto3.getEnumType(DNSMode) },
+    { no: 6, name: "trusted_dns_servers", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): NetworkPolicy {

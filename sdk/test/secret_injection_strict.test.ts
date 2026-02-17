@@ -8,7 +8,7 @@ import { launchDaemon, shutdownDaemon } from "./helpers.ts";
 import { TEST_CERT, TEST_KEY } from "./tls_fixture.ts";
 
 for (const fsBackend of ["auto", "fsrpc"] as const) {
-  test(`sdk secret injection (fs_backend=${fsBackend})`, async () => {
+  test(`sdk secret injection strict (fs_backend=${fsBackend})`, async () => {
     const { daemon, port } = await launchDaemon({
       KLITKA_PROXY_INSECURE: "1",
       KLITKA_FS_BACKEND: fsBackend,
@@ -35,7 +35,11 @@ for (const fsBackend of ["auto", "fsrpc"] as const) {
 
       const sandbox = await Sandbox.start({
         baseUrl: `http://127.0.0.1:${port}`,
-        network: { allowHosts: ["localhost"], blockPrivateRanges: false },
+        network: {
+          allowHosts: ["localhost"],
+          blockPrivateRanges: false,
+          egressMode: "strict",
+        },
         secrets: {
           API_KEY: { hosts: ["localhost"], value: secret },
         },

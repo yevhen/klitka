@@ -3,6 +3,8 @@ import { createConnectTransport, Http2SessionManager } from "@connectrpc/connect
 
 import { DaemonService } from "./gen/klitka/v1/daemon_connect";
 import {
+  DNSMode,
+  EgressMode,
   ExecInput,
   ExecRequest,
   ExecStart,
@@ -31,6 +33,9 @@ export type NetworkConfig = {
   allowHosts?: string[];
   denyHosts?: string[];
   blockPrivateRanges?: boolean;
+  egressMode?: "compat" | "strict";
+  dnsMode?: "open" | "trusted" | "synthetic";
+  trustedDnsServers?: string[];
 };
 
 export type SecretConfig = {
@@ -348,18 +353,55 @@ function buildNetworkPolicy(network?: NetworkConfig): NetworkPolicy | undefined 
 
   const allowHosts = (network.allowHosts ?? []).filter(Boolean);
   const denyHosts = (network.denyHosts ?? []).filter(Boolean);
-  const hasPolicy = allowHosts.length > 0 || denyHosts.length > 0 || network.blockPrivateRanges !== undefined;
+  const trustedDnsServers = (network.trustedDnsServers ?? []).filter(Boolean);
+  const blockPrivateRanges = network.blockPrivateRanges ?? true;
+  const egressMode = egressModeFromConfig(network.egressMode);
+  const dnsMode = dnsModeFromConfig(network.dnsMode);
+
+  if (dnsMode === DNSMode.DNS_MODE_TRUSTED && trustedDnsServers.length === 0) {
+    throw new Error("network.dnsMode=trusted requires at least one trustedDnsServers entry");
+  }
+  if (dnsMode !== DNSMode.DNS_MODE_TRUSTED && trustedDnsServers.length > 0) {
+    throw new Error("network.trustedDnsServers can only be used with network.dnsMode=trusted");
+  }
+
+  const hasPolicy =
+    allowHosts.length > 0 ||
+    denyHosts.length > 0 ||
+    trustedDnsServers.length > 0 ||
+    network.blockPrivateRanges !== undefined ||
+    network.egressMode !== undefined ||
+    network.dnsMode !== undefined;
 
   if (!hasPolicy) {
     return undefined;
   }
 
-  const blockPrivateRanges = network.blockPrivateRanges ?? true;
   return new NetworkPolicy({
     allowHosts,
     denyHosts,
     blockPrivateRanges,
+    egressMode,
+    dnsMode,
+    trustedDnsServers,
   });
+}
+
+function egressModeFromConfig(mode?: NetworkConfig["egressMode"]): EgressMode {
+  if (mode === "strict") {
+    return EgressMode.STRICT;
+  }
+  return EgressMode.COMPAT;
+}
+
+function dnsModeFromConfig(mode?: NetworkConfig["dnsMode"]): DNSMode {
+  if (mode === "trusted") {
+    return DNSMode.DNS_MODE_TRUSTED;
+  }
+  if (mode === "synthetic") {
+    return DNSMode.DNS_MODE_SYNTHETIC;
+  }
+  return DNSMode.DNS_MODE_OPEN;
 }
 
 function buildSecrets(secrets?: Record<string, SecretConfig>): Secret[] {
