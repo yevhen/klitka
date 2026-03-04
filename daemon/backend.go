@@ -33,8 +33,15 @@ const (
 
 var ErrVMUnavailable = errors.New("vm backend unavailable")
 
+var vmBackendFactory = func(id string, req *klitkav1.StartVMRequest, env []string, network *networkManager) (ExecBackend, error) {
+	return newVMBackend(id, req, env, network)
+}
+var hostBackendFactory = func(id string, req *klitkav1.StartVMRequest, env []string) (ExecBackend, error) {
+	return newHostBackend(id, req, env)
+}
+
 func newVM(id string, req *klitkav1.StartVMRequest) (*VM, error) {
-	network, err := newNetworkManager(req)
+	network, err := newNetworkManager(id, req)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +60,7 @@ func newVM(id string, req *klitkav1.StartVMRequest) (*VM, error) {
 	}
 
 	if mode == backendVM || mode == backendAuto {
-		backend, err := newVMBackend(id, req, env, network)
+		backend, err := vmBackendFactory(id, req, env, network)
 		if err == nil {
 			return &VM{ID: id, Backend: backend, Network: network}, nil
 		}
@@ -77,7 +84,7 @@ func newVM(id string, req *klitkav1.StartVMRequest) (*VM, error) {
 		}
 	}
 
-	backend, err := newHostBackend(id, req, env)
+	backend, err := hostBackendFactory(id, req, env)
 	if err != nil {
 		if network != nil {
 			_ = network.Close()

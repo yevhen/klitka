@@ -428,6 +428,23 @@ Definition of Done (applies to every slice):
 - [x] Add blocked counters (`blocked_egress`, `dns_blocked`) on proxy shutdown.
 - [x] Add README migration notes for compat → strict.
 
+### macOS strict PF plan matrix (A–H)
+- [x] Publish FR/NFR traceability matrix in `docs/network-enforcement.md` (requirements → tests).
+- [x] Document dedicated macOS VM strict PF execution workflow in `docs/macos-strict-pf-runbook.md` (same suites, environment-driven PF checks).
+- [x] A1: strict proxy bypass denied (`TestE2EBypassProxyDenied`, `sdk proxy_bypass_denied.test.ts`).
+- [x] A2: strict allowlist positive path (`TestE2ENetworkAllowlistStrict`, `sdk network_allowlist_strict.test.ts`).
+- [x] B1: synthetic DNS exfil blocked (`TestE2EDNSModeSyntheticBlocksExfil`, `sdk dns synthetic blocks exfil`).
+- [x] B2: trusted DNS only configured resolvers (`TestE2EDNSModeTrustedUsesAllowedResolvers`, `sdk dns trusted uses allowed resolvers`).
+- [x] B3: open DNS compatibility under strict (`TestE2EDNSModeOpenCompatibilityStrict`, `sdk dns open compatibility in strict mode`).
+- [x] B4/B5: trusted DNS misconfig/invalid endpoint hard fail (`TestE2EDNSModeTrustedRequiresResolverConfig`, `TestE2EDNSModeTrustedRejectsInvalidResolverEndpoint`, daemon/network validation tests, SDK trusted DNS validation tests).
+- [x] C1/C2/C3: deny precedence + private/internal blocking (`TestE2EDenyOverridesAllowStrict`, `TestE2EPrivateRangeBlockStrict`, `TestE2ELoopbackAndMetadataBlockedStrict`).
+- [x] D1/D2/D3/D4: adversarial transport hardening (direct TCP/UDP blocked, deterministic IPv6 block, DoH policy semantics) (`TestE2EDirectTCPOtherPortsBlockedStrict`, `TestE2EUDPNon53BlockedStrict`, `TestE2EIPv6BlockedStrict`, `TestE2EDoHEndpointRespectsAllowlistStrict`).
+- [x] E1/E2: startup rollback + idempotent cleanup (`TestNewVMStrictRollbackClosesTransportOnBackendError`, `TestNetworkManagerStrictCloseIdempotent`).
+- [x] E3/E4: residue cleanup + repeated cycles (`TestStrictResidueCleanupPrepareBeforeFactory`, `TestStrictRepeatedStartStopNoAnchorLeak`, `TestE2EStrictRepeatedStartStopCycles`).
+- [x] F1/F2: multi-VM isolation/concurrency (`TestStrictMultiVMConcurrentIsolation`, `TestStrictStopOneVMKeepsOtherActive`, `TestE2EStrictMultiVMConcurrentIsolation`, `TestE2EStrictStopOneVMOtherContinues`).
+- [x] G1/G2: strict secret injection positive + host mismatch negative (`TestE2ESecretInjectionStrict`, `TestE2ESecretHostMismatchStrict`, SDK strict secret injection and host-mismatch suites).
+- [x] H1/H2: strict startup fields + shutdown counters (`TestNetworkManagerStrictLogIncludesVMAndAnchor`, `TestProxyShutdownCountersReflectDeniedTraffic`).
+
 ### Slice 7 — WSL2 bootstrap
 **Goal:** Windows support via WSL2.
 - [x] Windows CLI bootstraps WSL2 distro and daemon.

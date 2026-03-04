@@ -28,6 +28,19 @@ func requireVMBackend(t *testing.T) {
 	t.Setenv("KLITKA_TMPDIR", "/tmp")
 }
 
+func requireStrictTransport(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS != "darwin" {
+		return
+	}
+	fd, err := os.OpenFile("/dev/pf", os.O_RDWR, 0)
+	if err != nil {
+		t.Skipf("strict transport requires /dev/pf write access: %v", err)
+		return
+	}
+	_ = fd.Close()
+}
+
 func requireVirtiofsd(t *testing.T) {
 	t.Helper()
 	if os.Getenv("CI") != "" && os.Getenv("KLITKA_ALLOW_VIRTIOFS") == "" {

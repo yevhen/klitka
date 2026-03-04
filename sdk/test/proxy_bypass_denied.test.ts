@@ -4,9 +4,13 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 
 import { Sandbox } from "../src/index.ts";
-import { launchDaemon, shutdownDaemon } from "./helpers.ts";
+import { launchDaemon, shutdownDaemon, strictTransportSupported } from "./helpers.ts";
 
-test("sdk proxy bypass denied in strict mode", async () => {
+test("sdk proxy bypass denied in strict mode", async (t) => {
+  if (!(await strictTransportSupported())) {
+    t.skip("strict transport requires /dev/pf write access on macOS");
+    return;
+  }
   const { daemon, port } = await launchDaemon();
 
   const server = http.createServer((_req, res) => {

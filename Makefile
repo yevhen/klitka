@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: help guest guest-base test test-go test-sdk test-nix
+.PHONY: help guest guest-base test test-go test-sdk test-nix test-strict-pf-vm test-strict-pf-vm-tart
 
 help:
 	@echo "Targets:"
@@ -10,6 +10,8 @@ help:
 	@echo "  test-sdk    Run SDK tests"
 	@echo "  test        Build guest + run Go + SDK tests"
 	@echo "  test-nix    Run tests inside nix develop"
+	@echo "  test-strict-pf-vm  Run strict PF validation inside current dedicated macOS VM"
+	@echo "  test-strict-pf-vm-tart  Provision/run dedicated macOS VM via Tart and execute strict PF validation"
 
 
 guest:
@@ -41,3 +43,11 @@ test-nix:
 	else \
 		nix-shell --run "./guest/image/build.sh && go test ./... && (cd sdk && npm test)"; \
 	fi
+
+
+test-strict-pf-vm:
+	./scripts/run-strict-pf-vm.sh --focused
+
+
+test-strict-pf-vm-tart:
+	./scripts/run-strict-pf-vm-tart.sh

@@ -2,6 +2,7 @@ import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 
 const execFileAsync = promisify(execFile);
@@ -46,6 +47,18 @@ export async function ensureVirtiofsd(): Promise<boolean> {
   }
   try {
     await ensureCommand("virtiofsd");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function strictTransportSupported(): Promise<boolean> {
+  if (process.platform !== "darwin") {
+    return true;
+  }
+  try {
+    await fs.access("/dev/pf", fsConstants.R_OK | fsConstants.W_OK);
     return true;
   } catch {
     return false;

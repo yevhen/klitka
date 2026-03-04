@@ -13,6 +13,7 @@ import (
 )
 
 func TestE2EDNSModeSyntheticBlocksExfil(t *testing.T) {
+	requireStrictTransport(t)
 	requireVMBackend(t)
 	addr := startTestDaemon(t)
 
@@ -53,6 +54,7 @@ func TestE2EDNSModeSyntheticBlocksExfil(t *testing.T) {
 }
 
 func TestE2EDNSModeTrustedUsesAllowedResolvers(t *testing.T) {
+	requireStrictTransport(t)
 	requireVMBackend(t)
 	addr := startTestDaemon(t)
 
@@ -97,6 +99,87 @@ func TestE2EDNSModeTrustedUsesAllowedResolvers(t *testing.T) {
 	}
 	if !waitForDNSQuery(queries, domain, 5*time.Second) {
 		t.Fatalf("trusted resolver did not receive query for %s", domain)
+	}
+}
+
+func TestE2EDNSModeOpenCompatibilityStrict(t *testing.T) {
+	requireStrictTransport(t)
+	requireVMBackend(t)
+	addr := startTestDaemon(t)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to start http server: %v", err)
+	}
+	server := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("ok"))
+		}),
+	}
+	go func() {
+		_ = server.Serve(listener)
+	}()
+	t.Cleanup(func() {
+		_ = server.Close()
+	})
+
+	targetURL := fmt.Sprintf("http://localhost:%d", listener.Addr().(*net.TCPAddr).Port)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	args := []string{
+		"--allow-host", "localhost",
+		"--block-private=false",
+		"--egress-mode", "strict",
+		"--dns-mode", "open",
+		"--",
+		"curl", "-fsS", targetURL,
+	}
+	output, err := runCLIExec(ctx, addr, args)
+	if err != nil {
+		t.Fatalf("open DNS mode request failed: %v (output: %s)", err, output)
+	}
+	if !strings.Contains(string(output), "ok") {
+		t.Fatalf("unexpected response: %s", output)
+	}
+}
+
+func TestE2EDNSModeTrustedRequiresResolverConfig(t *testing.T) {
+	addr := startTestDaemon(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	args := []string{
+		"--dns-mode", "trusted",
+		"--",
+		"true",
+	}
+	output, err := runCLIExec(ctx, addr, args)
+	if err == nil {
+		t.Fatalf("expected trusted DNS mode without --trusted-dns to fail (output: %s)", output)
+	}
+	if !strings.Contains(string(output), "trusted dns mode requires at least one --trusted-dns") {
+		t.Fatalf("unexpected error output: %s", output)
+	}
+}
+
+func TestE2EDNSModeTrustedRejectsInvalidResolverEndpoint(t *testing.T) {
+	addr := startTestDaemon(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	args := []string{
+		"--dns-mode", "trusted",
+		"--trusted-dns", "not-an-ip",
+		"--",
+		"true",
+	}
+	output, err := runCLIExec(ctx, addr, args)
+	if err == nil {
+		t.Fatalf("expected invalid trusted dns endpoint to fail (output: %s)", output)
+	}
+	if !strings.Contains(string(output), "invalid trusted dns server") {
+		t.Fatalf("unexpected error output: %s", output)
 	}
 }
 

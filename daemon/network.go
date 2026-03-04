@@ -14,6 +14,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -27,10 +28,14 @@ const proxyDialTimeout = 10 * time.Second
 const dnsLookupTimeout = 5 * time.Second
 
 type networkManager struct {
-	policy     networkPolicy
-	proxy      *proxyServer
-	env        []string
-	caCertPath string
+	vmID            string
+	policy          networkPolicy
+	proxy           *proxyServer
+	env             []string
+	caCertPath      string
+	strictTransport strictTransportEnforcer
+	closeOnce       sync.Once
+	closeErr        error
 }
 
 type networkPolicy struct {
@@ -42,7 +47,7 @@ type networkPolicy struct {
 	trustedDNSServers []string
 }
 
-func newNetworkManager(req *klitkav1.StartVMRequest) (*networkManager, error) {
+func newNetworkManager(vmID string, req *klitkav1.StartVMRequest) (*networkManager, error) {
 	policy, err := buildNetworkPolicy(req.GetNetwork())
 	if err != nil {
 		return nil, err
@@ -69,8 +74,36 @@ func newNetworkManager(req *klitkav1.StartVMRequest) (*networkManager, error) {
 		return nil, err
 	}
 
+	manager := &networkManager{
+		vmID:   vmID,
+		policy: policy,
+		proxy:  proxy,
+	}
+
+	if policy.egressMode == klitkav1.EgressMode_EGRESS_MODE_STRICT {
+		if prepareErr := strictTransportPrepare(); prepareErr != nil {
+			_ = proxy.Close()
+			return nil, fmt.Errorf("strict transport prepare failed: %w", prepareErr)
+		}
+		strictTransport, strictErr := strictTransportFactory(vmID, proxy.Port())
+		if strictErr != nil {
+			_ = proxy.Close()
+			return nil, fmt.Errorf("strict transport setup failed: %w", strictErr)
+		}
+		manager.strictTransport = strictTransport
+		if strictTransport != nil {
+			log.Printf(
+				"strict transport activated network_enforcement=%s dns_mode=%s vm_id=%s anchor_id=%s",
+				policy.egressModeName(),
+				policy.dnsModeName(),
+				vmID,
+				strictTransport.AnchorID(),
+			)
+		}
+	}
+
 	proxyURL := fmt.Sprintf("http://%s", joinHostPort(guestProxyHost, proxy.Port()))
-	env := []string{
+	manager.env = []string{
 		"HTTP_PROXY=" + proxyURL,
 		"HTTPS_PROXY=" + proxyURL,
 		"ALL_PROXY=" + proxyURL,
@@ -78,11 +111,10 @@ func newNetworkManager(req *klitkav1.StartVMRequest) (*networkManager, error) {
 		"https_proxy=" + proxyURL,
 		"all_proxy=" + proxyURL,
 	}
-	env = append(env, secretEnv...)
+	manager.env = append(manager.env, secretEnv...)
 
-	caCertPath := ""
 	if proxy.mitm != nil {
-		caCertPath = proxy.mitm.CertPath()
+		manager.caCertPath = proxy.mitm.CertPath()
 	}
 
 	log.Printf(
@@ -95,19 +127,31 @@ func newNetworkManager(req *klitkav1.StartVMRequest) (*networkManager, error) {
 		policy.blockPrivateRange,
 	)
 
-	return &networkManager{
-		policy:     policy,
-		proxy:      proxy,
-		env:        env,
-		caCertPath: caCertPath,
-	}, nil
+	return manager, nil
 }
 
 func (manager *networkManager) Close() error {
-	if manager == nil || manager.proxy == nil {
+	if manager == nil {
 		return nil
 	}
-	return manager.proxy.Close()
+	manager.closeOnce.Do(func() {
+		if manager.strictTransport != nil {
+			strictErr := manager.strictTransport.Close()
+			manager.closeErr = errors.Join(manager.closeErr, strictErr)
+			log.Printf(
+				"strict transport deactivated network_enforcement=%s dns_mode=%s vm_id=%s anchor_id=%s cleanup_error=%t",
+				manager.policy.egressModeName(),
+				manager.policy.dnsModeName(),
+				manager.vmID,
+				manager.strictTransport.AnchorID(),
+				strictErr != nil,
+			)
+		}
+		if manager.proxy != nil {
+			manager.closeErr = errors.Join(manager.closeErr, manager.proxy.Close())
+		}
+	})
+	return manager.closeErr
 }
 
 func buildNetworkPolicy(cfg *klitkav1.NetworkPolicy) (networkPolicy, error) {
@@ -640,13 +684,13 @@ func (proxy *proxyServer) lookupIPs(ctx context.Context, host string) ([]net.IP,
 		return nil, fmt.Errorf("empty host")
 	}
 	if ip := net.ParseIP(host); ip != nil {
-		return []net.IP{ip}, nil
+		return proxy.enforceAddressFamily(host, []net.IP{ip})
 	}
 
 	switch proxy.policy.dnsMode {
 	case klitkav1.DNSMode_DNS_MODE_SYNTHETIC:
 		if host == "localhost" {
-			return []net.IP{net.IPv4(127, 0, 0, 1), net.ParseIP("::1")}, nil
+			return proxy.enforceAddressFamily(host, []net.IP{net.IPv4(127, 0, 0, 1), net.ParseIP("::1")})
 		}
 		proxy.markDNSBlocked()
 		return nil, fmt.Errorf("blocked dns lookup for host: %s", host)
@@ -679,10 +723,28 @@ func (proxy *proxyServer) lookupIPs(ctx context.Context, host string) ([]net.IP,
 			}
 			return nil, fmt.Errorf("no ip for host %s", host)
 		}
-		return ips, nil
+		return proxy.enforceAddressFamily(host, ips)
 	default:
 		return nil, fmt.Errorf("unsupported dns mode: %v", proxy.policy.dnsMode)
 	}
+}
+
+func (proxy *proxyServer) enforceAddressFamily(host string, ips []net.IP) ([]net.IP, error) {
+	if proxy.policy.egressMode != klitkav1.EgressMode_EGRESS_MODE_STRICT {
+		return ips, nil
+	}
+
+	filtered := make([]net.IP, 0, len(ips))
+	for _, ip := range ips {
+		if ip != nil && ip.To4() != nil {
+			filtered = append(filtered, ip)
+		}
+	}
+	if len(filtered) == 0 {
+		proxy.markBlockedEgress()
+		return nil, fmt.Errorf("blocked host: %s (ipv6 egress unsupported in strict mode)", host)
+	}
+	return filtered, nil
 }
 
 func isPrivateIP(ip net.IP) bool {

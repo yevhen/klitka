@@ -5,9 +5,13 @@ import dgram from "node:dgram";
 import type { AddressInfo } from "node:net";
 
 import { Sandbox } from "../src/index.ts";
-import { launchDaemon, shutdownDaemon } from "./helpers.ts";
+import { launchDaemon, shutdownDaemon, strictTransportSupported } from "./helpers.ts";
 
-test("sdk dns synthetic blocks exfil", async () => {
+test("sdk dns synthetic blocks exfil", async (t) => {
+  if (!(await strictTransportSupported())) {
+    t.skip("strict transport requires /dev/pf write access on macOS");
+    return;
+  }
   const { daemon, port } = await launchDaemon();
 
   const server = http.createServer((_req, res) => {
@@ -43,7 +47,11 @@ test("sdk dns synthetic blocks exfil", async () => {
   }
 });
 
-test("sdk dns trusted uses allowed resolvers", async () => {
+test("sdk dns trusted uses allowed resolvers", async (t) => {
+  if (!(await strictTransportSupported())) {
+    t.skip("strict transport requires /dev/pf write access on macOS");
+    return;
+  }
   const { daemon, port } = await launchDaemon();
 
   const server = http.createServer((_req, res) => {
@@ -83,6 +91,80 @@ test("sdk dns trusted uses allowed resolvers", async () => {
   } finally {
     await dns.close();
     server.close();
+    await shutdownDaemon(daemon);
+  }
+});
+
+test("sdk dns open compatibility in strict mode", async (t) => {
+  if (!(await strictTransportSupported())) {
+    t.skip("strict transport requires /dev/pf write access on macOS");
+    return;
+  }
+  const { daemon, port } = await launchDaemon();
+
+  const server = http.createServer((_req, res) => {
+    res.writeHead(200, { "content-type": "text/plain" });
+    res.end("ok");
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", () => resolve());
+  });
+
+  try {
+    const address = server.address() as AddressInfo;
+
+    const sandbox = await Sandbox.start({
+      baseUrl: `http://127.0.0.1:${port}`,
+      network: {
+        allowHosts: ["localhost"],
+        blockPrivateRanges: false,
+        egressMode: "strict",
+        dnsMode: "open",
+      },
+    });
+
+    const result = await sandbox.exec(["curl", "-fsS", `http://localhost:${address.port}`]);
+    const output = new TextDecoder().decode(result.stdout);
+
+    assert.equal(result.exitCode, 0, `open DNS mode request failed: ${output}`);
+    assert.ok(output.includes("ok"));
+
+    await sandbox.close();
+  } finally {
+    server.close();
+    await shutdownDaemon(daemon);
+  }
+});
+
+test("sdk dns trusted requires resolvers", async () => {
+  await assert.rejects(
+    () =>
+      Sandbox.start({
+        baseUrl: "http://127.0.0.1:1",
+        network: {
+          dnsMode: "trusted",
+        },
+      }),
+    /requires at least one trustedDnsServers entry/
+  );
+});
+
+test("sdk dns trusted rejects invalid resolver endpoint", async () => {
+  const { daemon, port } = await launchDaemon();
+  try {
+    await assert.rejects(
+      () =>
+        Sandbox.start({
+          baseUrl: `http://127.0.0.1:${port}`,
+          network: {
+            dnsMode: "trusted",
+            trustedDnsServers: ["not-an-ip"],
+          },
+        }),
+      /invalid trusted dns server/
+    );
+  } finally {
     await shutdownDaemon(daemon);
   }
 });

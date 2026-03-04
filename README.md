@@ -58,15 +58,28 @@ await vm.close();
 `network.egressMode`:
 - `"compat"` (default): backwards-compatible mode. Proxy env vars are injected, but guest code can still bypass them.
 - `"strict"`: hardened mode. VM networking is restricted to the host-enforced path.
+  On macOS this path uses Packet Filter (`pf`), so the daemon must have `/dev/pf`
+  access; strict startup fails closed if pf setup cannot be applied.
 
 `network.dnsMode`:
 - `"open"` (default): system resolver behavior (compat).
 - `"trusted"`: resolver lookups only via `trustedDnsServers`.
 - `"synthetic"`: no external DNS lookups from the enforcement proxy (limits DNS-based exfil).
 
+Strict transport semantics (current):
+- outbound IPv6 is unsupported and blocked deterministically
+- DoH/DoT endpoints follow the same allow/deny/private-range host policy (no hidden bypass channel)
+
 Migration note: start with `egressMode: "compat"` for legacy workloads, then switch to `"strict"` after validating outbound dependencies and DNS requirements.
 
+Test execution model:
+- mandatory automated gate is Linux-only,
+- macOS strict PF checks run as part of the same Go/SDK suites when executed on a macOS host with `/dev/pf` access (recommended: dedicated macOS VM),
+- dedicated VM command helper: `./scripts/run-strict-pf-vm.sh --focused`.
+- optional Tart orchestration helper (host provisions/starts VM): `./scripts/run-strict-pf-vm-tart.sh`.
+
 Detailed policy semantics and migration checklist: [docs/network-enforcement.md](docs/network-enforcement.md).
+macOS PF validation runbook: [docs/macos-strict-pf-runbook.md](docs/macos-strict-pf-runbook.md).
 
 ## Key Components
 

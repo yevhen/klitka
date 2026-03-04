@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -109,13 +110,12 @@ func (s *Service) StopVM(
 	delete(s.vms, vmID)
 	s.mu.Unlock()
 
-	if err := vm.Backend.Close(); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
+	closeErr := vm.Backend.Close()
 	if vm.Network != nil {
-		if err := vm.Network.Close(); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
+		closeErr = errors.Join(closeErr, vm.Network.Close())
+	}
+	if closeErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, closeErr)
 	}
 	return connect.NewResponse(&klitkav1.StopVMResponse{}), nil
 }
